@@ -106,6 +106,68 @@ dev_dist_product_descriptor(
 )
 
 dev_dist_product_descriptor(
+    name = "Rhipper_product_descriptor",
+    aliases = [
+        "com.rhipper.modules.workbench",
+        "com.intellij.modules.platform",
+        "com.intellij.modules.lang",
+        "com.intellij.modules.lang.actions",
+    ],
+    content_modules = [
+        # do not sort,
+        "intellij.platform.remoteServers.impl",
+        "intellij.platform.ide.newUiOnboarding",
+        "intellij.platform.customization.min",
+    ],
+    descriptors = {
+        "//platform/analysis-api:resources/META-INF/Analysis.analyzer.xml": "META-INF/Analysis.analyzer.xml",
+        "//platform/analysis-impl:resources/META-INF/AnalysisImpl.analyzer.xml": "META-INF/AnalysisImpl.analyzer.xml",
+        "//platform/configuration-store-impl:resources/intellij.platform.configurationStore.impl.actions.xml": "intellij.platform.configurationStore.impl.actions.xml",
+        "//platform/core-api:resources/META-INF/Core.analyzer.xml": "META-INF/Core.analyzer.xml",
+        "//platform/core-impl:resources/META-INF/CoreImpl.analyzer.xml": "META-INF/CoreImpl.analyzer.xml",
+        "//platform/diff-impl:resources/intellij.platform.diff.impl.actions.xml": "intellij.platform.diff.impl.actions.xml",
+        "//platform/execution-impl:resources/intellij.platform.execution.impl.actions.xml": "intellij.platform.execution.impl.actions.xml",
+        "//platform/external-system-impl:resources/META-INF/ExternalSystemActions.xml": "META-INF/ExternalSystemActions.xml",
+        "//platform/external-system-impl:resources/META-INF/ExternalSystemExtensionPoints.xml": "META-INF/ExternalSystemExtensionPoints.xml",
+        "//platform/external-system-impl:resources/META-INF/ExternalSystemExtensions.xml": "META-INF/ExternalSystemExtensions.xml",
+        "//platform/lang-api:resources/intellij.platform.lang.actions.xml": "intellij.platform.lang.actions.xml",
+        "//platform/lang-impl:resources/intellij.platform.lang.impl.actions.xml": "intellij.platform.lang.impl.actions.xml",
+        "//platform/platform-api:resources/intellij.platform.ide.actions.xml": "intellij.platform.ide.actions.xml",
+        "//platform/platform-impl/initial-config-import:resources/intellij.platform.ide.initialConfigImport.actions.xml": "intellij.platform.ide.initialConfigImport.actions.xml",
+        "//platform/platform-impl:resources/intellij.platform.ide.impl.actions.xml": "intellij.platform.ide.impl.actions.xml",
+        "//platform/usageView-impl:resources/intellij.platform.usageView.impl.actions.xml": "intellij.platform.usageView.impl.actions.xml",
+        "//platform/usageView:resources/intellij.platform.usageView.actions.xml": "intellij.platform.usageView.actions.xml",
+        "//platform/xdebugger-api:resources/intellij.platform.debugger.content.xml": "intellij.platform.debugger.content.xml",
+        "//platform/xdebugger-impl/backend:resources/intellij.platform.debugger.impl.backend.content.xml": "intellij.platform.debugger.impl.backend.content.xml",
+        "//platform/xdebugger-impl/rpc:resources/intellij.platform.debugger.impl.rpc.content.xml": "intellij.platform.debugger.impl.rpc.content.xml",
+        "//platform/xdebugger-impl/shared:resources/intellij.platform.debugger.impl.shared.content.xml": "intellij.platform.debugger.impl.shared.content.xml",
+        "//platform/xdebugger-impl/ui:resources/intellij.platform.debugger.impl.ui.actions.xml": "intellij.platform.debugger.impl.ui.actions.xml",
+        "//platform/xdebugger-impl:resources/intellij.platform.debugger.impl.actions.xml": "intellij.platform.debugger.impl.actions.xml",
+        "//platform/xdebugger-impl:resources/intellij.platform.debugger.impl.content.xml": "intellij.platform.debugger.impl.content.xml",
+    },
+    main_module = "intellij.rhipper.ide",
+    module_set_table = DEV_DIST_MODULE_SETS,
+    module_sets = [
+        # do not sort,
+        "intellij.moduleSets.ide.common",
+        "intellij.moduleSets.compose.runtime",
+        "intellij.moduleSets.platform.resources.defaults",
+        "intellij.moduleSets.rd.common",
+    ],
+    refused_content_modules = [
+        "intellij.rd.ide.model.generated",
+        "intellij.rd.platform",
+        "intellij.rd.ui",
+        "intellij.platform.split.protocol",
+        "intellij.rd.client",
+        "intellij.rd.client.debugger",
+        "intellij.rd.client.baseline",
+        "intellij.rd.client.base",
+        "intellij.rd.client.internal",
+    ],
+)
+
+dev_dist_product_descriptor(
     name = "idea_community_product_descriptor",
     aliases = [
         "com.intellij.modules.idea",

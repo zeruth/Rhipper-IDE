@@ -24,6 +24,14 @@
       ],
       "class": "org.jetbrains.intellij.build.AndroidStudioProperties"
     },
+    "Rhipper": {
+      "modules": [
+        "intellij.idea.community.build",
+        "intellij.idea.community.build.dependencies",
+        "intellij.platform.buildScripts"
+      ],
+      "class": "org.jetbrains.intellij.build.RhipperProperties"
+    },
     "MPS": {
       "modules": [
         "intellij.mps.build",

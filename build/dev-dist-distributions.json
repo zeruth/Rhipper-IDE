@@ -146,6 +146,44 @@
             ],
             "platformBundledModules": {},
             "modularLoader": false
+        },
+        "Rhipper": {
+            "bundledModules": [
+                "intellij.dev",
+                "intellij.editorconfig.plugin",
+                "intellij.grid.plugin",
+                "intellij.java.aetherDependencyResolver.plugin",
+                "intellij.jcef.plugin",
+                "intellij.jna.plugin",
+                "intellij.json",
+                "intellij.markdown",
+                "intellij.mcpserver.plugin",
+                "intellij.platform.bookmarks.plugin",
+                "intellij.platform.compose.plugin",
+                "intellij.platform.execution.serviceView.plugin",
+                "intellij.platform.images",
+                "intellij.platform.navbar.plugin",
+                "intellij.platform.problemView.plugin",
+                "intellij.platform.recentFiles.plugin",
+                "intellij.platform.scratch.plugin",
+                "intellij.platform.structuralSearch.plugin",
+                "intellij.platform.structureView.plugin",
+                "intellij.platform.tasks.plugin",
+                "intellij.platform.testRunner.plugin",
+                "intellij.platform.todo.plugin",
+                "intellij.platform.vcs.plugin",
+                "intellij.pty4j.plugin",
+                "intellij.sh.plugin",
+                "intellij.terminal",
+                "intellij.textmate.plugin",
+                "intellij.toml",
+                "intellij.vcs.git",
+                "intellij.vcs.github",
+                "intellij.xml.plugin",
+                "intellij.yaml"
+            ],
+            "platformBundledModules": {},
+            "modularLoader": false
         }
     },
     "distributions": [
@@ -170,6 +208,13 @@
             "additionalModules": [
                 "intellij.devkit"
             ],
+            "runtimeModuleRepository": false
+        },
+        {
+            "name": "rhipper",
+            "label": "//build:rhipper_dist",
+            "product": "Rhipper",
+            "additionalModules": [],
             "runtimeModuleRepository": false
         }
     ]

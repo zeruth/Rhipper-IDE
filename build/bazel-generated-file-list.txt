@@ -2038,6 +2038,7 @@ python/terminal/frontend
 python/terminal/shared
 python/testFramework
 python/tools
+rhipper/ide
 spellchecker
 spellchecker/vcs
 spellchecker/xml

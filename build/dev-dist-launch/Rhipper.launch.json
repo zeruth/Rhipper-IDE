@@ -1,0 +1,59 @@
+{
+  "productCode": "RH",
+  "envVarBaseName": "RHIPPER",
+  "dataDirectoryBaseName": "Rhipper",
+  "minRequiredJavaVersion": 25,
+  "baseFileName": "rhipper",
+  "launch": {
+    "mainClass": "com.intellij.idea.Main",
+    "jvmArguments": {
+      "jnaNativeDir": "plugins/jna-plugin/lib/jna",
+      "pty4jNativeDir": "plugins/pty4j-plugin/lib/pty4j",
+      "skikoNativeDir": "plugins/platform-compose-plugin/lib/skiko-awt-runtime-all",
+      "platformPrefix": "Rhipper"
+    }
+  },
+  "customCommands": [
+    {
+      "commands": [
+        "stdioMcpServer"
+      ],
+      "vmOptionsFilePath": {
+        "Windows": "bin/mcp-server.vmoptions",
+        "macOS": "../bin/mcp-server.vmoptions",
+        "Linux": "bin/mcp-server.vmoptions"
+      },
+      "additionalBootClassPathJarNames": [
+        "../plugins/mcpserver-plugin/lib/intellij.mcpserver.stdio.jar",
+        "../plugins/mcpserver-plugin/lib/intellij.libraries.kotlin.logging.jar",
+        "../plugins/mcpserver-plugin/lib/intellij.libraries.ktor.server.sse.jar",
+        "../plugins/mcpserver-plugin/lib/intellij.libraries.mcp.kotlin.sdk.jar"
+      ],
+      "mainClass": "com.intellij.mcpserver.stdio.McpStdioRunnerKt"
+    }
+  ],
+  "vmOptions": {
+    "memory": [
+      "-Xms256m",
+      "-Xmx2048m"
+    ],
+    "product": [
+      "-Djava.nio.file.spi.DefaultFileSystemProvider=com.intellij.platform.core.nio.fs.MultiRoutingFileSystemProvider",
+      "-Dllm.show.ai.promotion.window.on.start=false"
+    ],
+    "os": {
+      "macOS": [
+        "-Dapple.awt.application.appearance=system"
+      ],
+      "Linux": [
+        "-Dsun.tools.attach.tmp.only=true",
+        "-Dawt.lock.fair=true",
+        "-Dawt.toolkit.name=auto",
+        "-Dsun.java2d.vulkan=true"
+      ]
+    }
+  },
+  "ideaProperties": {
+    "fatalErrorNotification": true
+  }
+}

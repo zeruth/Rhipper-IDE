@@ -33,6 +33,13 @@ DEV_DIST_PRODUCTS = {
         "//community-resources:resources/META-INF/IdeaPlugin.xml",
         "//community-resources:resources/idea/IdeaApplicationInfo.xml",
     ),
+    # `RhipperProperties`, the Rhipper decompilation workbench. It reuses the community IDEA images.
+    "Rhipper": _ide(
+        "rhipper",
+        "//build:idea_community_images",
+        "//rhipper/ide:resources/META-INF/RhipperPlugin.xml",
+        "//rhipper/ide:resources/idea/RhipperApplicationInfo.xml",
+    ),
 }
 
 def dev_dist_product(product):

@@ -63,7 +63,7 @@ _PLATFORM_ASSETS = {
     ],
 }
 
-_LAUNCH = struct(
+_LAUNCH_AndroidStudio = struct(
     idea_properties = "//bin:idea.properties",
     vmoptions = {
         "darwin": "idea.vmoptions",
@@ -77,12 +77,26 @@ _LAUNCH = struct(
 
 _PLAN_AndroidStudio = struct(
     platform_assets = _PLATFORM_ASSETS,
-    launch = _LAUNCH,
+    launch = _LAUNCH_AndroidStudio,
 )
 
 DEV_DIST_PLANS = {
     "AndroidStudio": _PLAN_AndroidStudio,
     "Idea": _PLAN_AndroidStudio,
+    "Rhipper": struct(
+        platform_assets = _PLATFORM_ASSETS,
+        launch = struct(
+            idea_properties = "//bin:idea.properties",
+            vmoptions = {
+                "darwin": "rhipper.vmoptions",
+                "linux": "rhipper64.vmoptions",
+                "windows": "rhipper64.exe.vmoptions",
+            },
+            main_class = "com.intellij.idea.Main",
+            launcher = struct(base_file_name = "rhipper", language_server = False, windows_gui = True, windows_console = True),
+            env_var_base_name = "RHIPPER",
+        ),
+    ),
 }
 
 # The launch model of every product, which its `platform_resources` component renders. A model file takes the
@@ -91,6 +105,7 @@ DEV_DIST_PLANS = {
 DEV_DIST_LAUNCH_MODELS = {
     "AndroidStudio": "//build/dev-dist-launch:AndroidStudio.launch.json",
     "Idea": "//build/dev-dist-launch:idea_community.launch.json",
+    "Rhipper": "//build/dev-dist-launch:Rhipper.launch.json",
 }
 
 # The application info sources of every product. The product files action and the plugin descriptor actions read
@@ -98,6 +113,7 @@ DEV_DIST_LAUNCH_MODELS = {
 DEV_DIST_APPLICATION_INFOS = {
     "AndroidStudio": struct(source = "//android-customization:resources/idea/AndroidStudioApplicationInfo.xml"),
     "Idea": struct(source = "//community-resources:resources/idea/IdeaApplicationInfo.xml"),
+    "Rhipper": struct(source = "//rhipper/ide:resources/idea/RhipperApplicationInfo.xml"),
 }
 
 # The `lib/` jar order of the platform as a rule with two lists, for every product with the runtime module repository

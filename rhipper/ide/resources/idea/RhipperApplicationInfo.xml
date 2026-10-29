@@ -1,0 +1,10 @@
+<component xmlns="http://jetbrains.org/intellij/schema/application-info">
+  <version major="2027" minor="1" eap="true"/>
+  <company name="Rhipper" url="https://github.com/zeruth/rhipper-ide" copyrightStart="2026"/>
+  <build number="RH-__BUILD__" date="__BUILD_DATE__"/>
+  <icon svg="/rhipper.svg" svg-small="/rhipper_16.svg"/>
+  <icon-eap svg="/rhipper.svg" svg-small="/rhipper_16.svg"/>
+  <names product="Rhipper" fullname="Rhipper Workbench" script="rhipper" motto="Decompilation Workbench"/>
+
+  <essential-plugin>com.intellij.modules.json</essential-plugin>
+</component>
