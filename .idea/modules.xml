@@ -2304,7 +2304,13 @@
       <module fileurl="file://$PROJECT_DIR$/plugins/restructuredtext/intellij.restructuredtext.iml" filepath="$PROJECT_DIR$/plugins/restructuredtext/intellij.restructuredtext.iml" />
       <module fileurl="file://$PROJECT_DIR$/python/python-restructuredtext/intellij.restructuredtext.python.iml" filepath="$PROJECT_DIR$/python/python-restructuredtext/intellij.restructuredtext.python.iml" />
       <module fileurl="file://$PROJECT_DIR$/plugins/restructuredtext/intellij.restructuredtext.tests.iml" filepath="$PROJECT_DIR$/plugins/restructuredtext/intellij.restructuredtext.tests.iml" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/rhipper/intellij.rhipper.iml" filepath="$PROJECT_DIR$/plugins/rhipper/intellij.rhipper.iml" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/rhipper/core/intellij.rhipper.core.iml" filepath="$PROJECT_DIR$/plugins/rhipper/core/intellij.rhipper.core.iml" />
       <module fileurl="file://$PROJECT_DIR$/rhipper/ide/intellij.rhipper.ide.iml" filepath="$PROJECT_DIR$/rhipper/ide/intellij.rhipper.ide.iml" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/rhipper/json/intellij.rhipper.json.iml" filepath="$PROJECT_DIR$/plugins/rhipper/json/intellij.rhipper.json.iml" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/rhipper/mcp/intellij.rhipper.mcp.iml" filepath="$PROJECT_DIR$/plugins/rhipper/mcp/intellij.rhipper.mcp.iml" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/rhipper/tests/intellij.rhipper.tests.iml" filepath="$PROJECT_DIR$/plugins/rhipper/tests/intellij.rhipper.tests.iml" />
+      <module fileurl="file://$PROJECT_DIR$/plugins/rhipper/ui/intellij.rhipper.ui.iml" filepath="$PROJECT_DIR$/plugins/rhipper/ui/intellij.rhipper.ui.iml" />
       <module fileurl="file://$PROJECT_DIR$/plugins/search-everywhere-lucene/backend/intellij.searchEverywhereLucene.backend.iml" filepath="$PROJECT_DIR$/plugins/search-everywhere-lucene/backend/intellij.searchEverywhereLucene.backend.iml" />
       <module fileurl="file://$PROJECT_DIR$/plugins/search-everywhere-lucene/backend/intellij.searchEverywhereLucene.backend.tests.iml" filepath="$PROJECT_DIR$/plugins/search-everywhere-lucene/backend/intellij.searchEverywhereLucene.backend.tests.iml" />
       <module fileurl="file://$PROJECT_DIR$/plugins/search-everywhere-lucene/common/intellij.searchEverywhereLucene.common.iml" filepath="$PROJECT_DIR$/plugins/search-everywhere-lucene/common/intellij.searchEverywhereLucene.common.iml" />

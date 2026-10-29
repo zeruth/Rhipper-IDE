@@ -1798,6 +1798,12 @@ plugins/rareJavaRefactorings
 plugins/remote-control
 plugins/repository-search/completion
 plugins/restructuredtext
+plugins/rhipper
+plugins/rhipper/core
+plugins/rhipper/json
+plugins/rhipper/mcp
+plugins/rhipper/tests
+plugins/rhipper/ui
 plugins/search-everywhere-lucene
 plugins/search-everywhere-lucene/backend
 plugins/search-everywhere-lucene/common

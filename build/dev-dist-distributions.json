@@ -173,6 +173,7 @@
                 "intellij.platform.todo.plugin",
                 "intellij.platform.vcs.plugin",
                 "intellij.pty4j.plugin",
+                "intellij.rhipper",
                 "intellij.sh.plugin",
                 "intellij.terminal",
                 "intellij.textmate.plugin",

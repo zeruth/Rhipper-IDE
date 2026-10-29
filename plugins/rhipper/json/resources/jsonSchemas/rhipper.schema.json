@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Rhipper project",
+  "description": "A Rhipper project: a reference binary and the source tree its translation goes into. Every relative path is relative to this file.",
+  "type": "object",
+  "required": ["exe"],
+  "properties": {
+    "name": {"type": "string", "description": "The name of the port. The build target and the run use it."},
+    "rhipper": {"type": "string", "description": "The Rhipper directory for this project. It overrides the IDE setting."},
+    "exe": {"type": "string", "description": "The reference binary."},
+    "arch": {"enum": ["x86", "x86_64"], "default": "x86_64", "description": "The architecture of the reference binary. Each one has its own translator."},
+    "toolchain": {
+      "type": ["string", "null"],
+      "description": "The compiler that built the reference, as rhtest names its toolsets (msvc-16.00-x86). toolchain.py reads it off the binary. Set it where the binary hides it."
+    },
+    "image_base": {"type": "string", "pattern": "^(0x)?[0-9a-fA-F]+$", "default": "0x140000000", "description": "The image base of the reference."},
+    "sources": {"type": "array", "items": {"type": "string"}, "default": ["src", "vendor"], "description": "The hand-written sources."},
+    "gen": {"type": "string", "default": "src/gen", "description": "Where the translator writes the generated sources."},
+    "build": {
+      "type": "object",
+      "description": "The CMake build of the port.",
+      "properties": {
+        "dir": {"type": "string", "default": "build/cmake"},
+        "config": {"type": "string", "default": "Release"},
+        "gen_target": {"type": "string", "default": "gen"},
+        "target": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "run": {
+      "type": "object",
+      "description": "How the pipeline runs the port.",
+      "properties": {
+        "exe": {"type": ["string", "null"], "description": "The port's executable."},
+        "cwd": {"type": "string", "default": ".", "description": "The working directory of the port."},
+        "args": {"type": "array", "items": {"type": "string"}},
+        "with": {
+          "type": "array",
+          "description": "Side processes that start before the port and stop after it, for example a server it talks to. {out} is the log directory.",
+          "items": {"type": "array", "items": {"type": "string"}}
+        },
+        "screenshot": {"type": "array", "items": {"type": "string"}, "description": "A command that captures the window every 15 s. {out} is the path of the image."}
+      },
+      "additionalProperties": true
+    },
+    "ghidra": {
+      "type": "object",
+      "description": "The headless Ghidra install and the project in it.",
+      "properties": {
+        "install": {"type": ["string", "null"], "description": "The Ghidra install. A glob such as C:/tools/ghidra_* is allowed."},
+        "projects": {"type": ["string", "null"], "description": "The directory of the Ghidra projects."},
+        "project": {"type": ["string", "null"]},
+        "program": {"type": ["string", "null"], "description": "The name of the program in the Ghidra project."},
+        "maxmem": {"type": "string", "default": "14G"},
+        "shards": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": true
+    },
+    "plugins": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Project modules that the pipeline calls into."},
+    "hooks": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}},
+    "handlers": {
+      "type": "object",
+      "properties": {"roots": {"type": "string"}, "stubs": {"type": ["string", "null"]}}
+    },
+    "facts_extra": {"type": "array", "items": {"type": "string"}, "description": "Project fact extractors, which run with the others."},
+    "translate_args": {"type": "array", "items": {"type": "string"}, "default": ["--all", "--depth", "24", "--fix", "--jobs", "4"]},
+    "import_overrides": {"type": "array", "items": {"type": "string"}, "description": "Imports whose adapters the project supplies."},
+    "gotchas_reviewed": {
+      "type": "object",
+      "additionalProperties": {"type": "string"},
+      "description": "The imports whose 32-bit to 64-bit gotchas a person reviewed, with the reason each one is safe."
+    },
+    "process": {"type": "string", "description": "The process name of the reference, for iat_dump.py."},
+    "source_prefixes": {"type": "array", "items": {"type": "string"}, "description": "Checkout prefixes that srcrefs.py strips."},
+    "forward_stubs": {"description": "The settings of forward_stubs.py."},
+    "env": {"type": "string", "description": "The prefix of the port's environment variables. The default is the project name in capitals."}
+  },
+  "additionalProperties": true
+}

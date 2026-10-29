@@ -1,0 +1,22 @@
+<idea-plugin visibility="internal">
+  <dependencies>
+    <!-- region Generated dependencies - run `Generate Product Layouts` to regenerate -->
+    <module name="intellij.libraries.compose.foundation.desktop"/>
+    <module name="intellij.platform.analysis"/>
+    <module name="intellij.platform.compose"/>
+    <module name="intellij.platform.core"/>
+    <module name="intellij.platform.core.ui"/>
+    <module name="intellij.platform.editor.ui"/>
+    <module name="intellij.platform.ide"/>
+    <module name="intellij.platform.ide.core"/>
+    <module name="intellij.platform.projectModel"/>
+    <module name="intellij.platform.util.ui"/>
+    <module name="intellij.rhipper.core"/>
+    <!-- endregion -->
+  </dependencies>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <toolWindow id="Rhipper" anchor="bottom" icon="com.rhipper.ide.RhipperIcons.Rhipper"
+                factoryClass="com.rhipper.ide.ui.RhipperToolWindowFactory"/>
+  </extensions>
+</idea-plugin>

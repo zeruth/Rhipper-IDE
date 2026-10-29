@@ -1,0 +1,63 @@
+load("@jps_dynamic_deps_community//:targets.bzl", "dev_dist_plugin")
+load("@rules_jvm//:jvm.bzl", "jvm_library")
+
+### auto-generated section `dev intellij.rhipper` start
+dev_dist_plugin(
+    content_modules = [
+        # do not sort,
+        "intellij.rhipper.core",
+        "intellij.rhipper.json",
+        "intellij.rhipper.mcp",
+        "intellij.rhipper.ui",
+    ],
+    descriptor = "resources/META-INF/plugin.xml",
+    jars = {
+        "lib/rhipper.jar": ["intellij.rhipper"],
+    },
+    main_module = "intellij.rhipper",
+    mode_refused_content_modules = {
+        "frontend": ["intellij.rhipper.json"],
+    },
+    module_jar_paths = {
+        "intellij.rhipper.core": "lib/intellij.rhipper.core.jar",
+    },
+)
+### auto-generated section `dev intellij.rhipper` end
+
+### auto-generated section `build intellij.rhipper` start
+jvm_library(
+    name = "rhipper",
+    srcs = glob(
+        [],
+        allow_empty = True,
+    ),
+    module_name = "intellij.rhipper",
+    resource_strip_prefix = "resources",
+    resources = glob(
+        ["resources/**/*"],
+    ),
+    visibility = ["//visibility:public"],
+)
+
+jvm_library(
+    name = "rhipper_test_lib",
+    testonly = True,
+    srcs = glob(
+        [],
+        allow_empty = True,
+    ),
+    module_name = "intellij.rhipper",
+    visibility = ["//visibility:public"],
+    runtime_deps = [":rhipper"],
+)
+### auto-generated section `build intellij.rhipper` end
+
+### auto-generated section `iml intellij.rhipper` start
+exports_files(
+    [
+        "intellij.rhipper.iml",
+        "resources/META-INF/plugin.xml",
+    ],
+    visibility = ["//visibility:public"],
+)
+### auto-generated section `iml intellij.rhipper` end

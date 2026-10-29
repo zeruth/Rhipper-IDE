@@ -341,6 +341,7 @@ DEV_DIST_PLUGIN_COMPONENTS = {
             "intellij.toml": "//build/dev-dist-descriptors/intellij.toml:intellij.toml_dev_plugin",
             "intellij.sh.plugin": "//build/dev-dist-descriptors/intellij.sh.plugin:intellij.sh.plugin_dev_plugin",
             "intellij.mcpserver.plugin": "//plugins/mcp-server/mcpserver.plugin:intellij.mcpserver.plugin_dev_plugin",
+            "intellij.rhipper": "//plugins/rhipper:intellij.rhipper_dev_plugin",
         },
         "additional": {
         },

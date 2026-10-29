@@ -29,6 +29,7 @@ val RHIPPER_BUNDLED_PLUGINS: List<String> = listOf(
   "intellij.toml",
   "intellij.sh.plugin",
   "intellij.mcpserver.plugin",
+  "intellij.rhipper",
 )
 
 /**

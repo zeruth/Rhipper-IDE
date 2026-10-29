@@ -1,0 +1,22 @@
+<idea-plugin>
+  <id>com.rhipper</id>
+  <name>Rhipper</name>
+  <vendor url="https://github.com/zeruth/Rhipper">Rhipper</vendor>
+  <category>Other Tools</category>
+
+  <description><![CDATA[
+    Rhipper projects: the <code>rhipper.json</code> project model, the decompile and translate pipeline,
+    the corpus and fidelity views, C support through clangd, and MCP tools for the Rhipper workflow.
+  ]]></description>
+
+  <dependencies>
+    <plugin id="com.intellij.modules.lang"/>
+  </dependencies>
+
+  <content namespace="jetbrains">
+    <module name="intellij.rhipper.core" loading="embedded"/>
+    <module name="intellij.rhipper.json"/>
+    <module name="intellij.rhipper.mcp"/>
+    <module name="intellij.rhipper.ui"/>
+  </content>
+</idea-plugin>

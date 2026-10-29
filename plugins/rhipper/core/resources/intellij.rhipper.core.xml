@@ -1,0 +1,97 @@
+<idea-plugin>
+  <dependencies>
+    <!-- region Generated dependencies - run `Generate Product Layouts` to regenerate -->
+    <module name="intellij.libraries.eclipse.lsp4j"/>
+    <module name="intellij.libraries.eclipse.lsp4j.jsonrpc"/>
+    <module name="intellij.libraries.kotlinx.serialization.core"/>
+    <module name="intellij.libraries.kotlinx.serialization.json"/>
+    <module name="intellij.platform.analysis"/>
+    <module name="intellij.platform.consoleView"/>
+    <module name="intellij.platform.core"/>
+    <module name="intellij.platform.core.impl"/>
+    <module name="intellij.platform.core.ui"/>
+    <module name="intellij.platform.editor.ui"/>
+    <module name="intellij.platform.execution"/>
+    <module name="intellij.platform.execution.impl"/>
+    <module name="intellij.platform.ide"/>
+    <module name="intellij.platform.ide.core"/>
+    <module name="intellij.platform.ide.core.impl"/>
+    <module name="intellij.platform.ide.impl"/>
+    <module name="intellij.platform.ide.observable"/>
+    <module name="intellij.platform.ide.progress"/>
+    <module name="intellij.platform.lang"/>
+    <module name="intellij.platform.lang.impl"/>
+    <module name="intellij.platform.lsp"/>
+    <module name="intellij.platform.projectModel"/>
+    <module name="intellij.platform.projectModel.impl"/>
+    <module name="intellij.platform.util.progress"/>
+    <module name="intellij.platform.util.ui"/>
+    <!-- endregion -->
+  </dependencies>
+
+  <resource-bundle>messages.RhipperBundle</resource-bundle>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <applicationService serviceImplementation="com.rhipper.ide.settings.RhipperSettings"/>
+    <applicationService serviceInterface="com.intellij.platform.ide.customization.ExternalProductResourceUrls"
+                        serviceImplementation="com.rhipper.ide.product.RhipperExternalProductResourceUrls"
+                        overrides="true"/>
+    <applicationConfigurable parentId="tools" id="rhipper" bundle="messages.RhipperBundle" key="settings.display.name"
+                             instance="com.rhipper.ide.settings.RhipperConfigurable"/>
+
+    <projectOpenProcessor implementation="com.rhipper.ide.project.RhipperProjectOpenProcessor" order="first"/>
+    <directoryIndexExcludePolicy implementation="com.rhipper.ide.project.RhipperExcludePolicy"/>
+    <postStartupActivity implementation="com.rhipper.ide.project.RhipperStartupActivity"/>
+    <postStartupActivity implementation="com.rhipper.ide.tools.RhipperToolsStartupActivity"/>
+
+    <platform.lsp.integrationProvider implementation="com.rhipper.ide.lsp.ClangdLspIntegrationProvider"/>
+
+    <configurationType implementation="com.rhipper.ide.pipeline.RhipperRunConfigurationType"/>
+    <consoleFilterProvider implementation="com.rhipper.ide.console.RhipperConsoleFilterProvider"/>
+
+    <notificationGroup id="Rhipper" displayType="BALLOON" bundle="messages.RhipperBundle" key="notification.group.name"/>
+  </extensions>
+
+  <projectListeners>
+    <listener class="com.rhipper.ide.corpus.RhipperGenGutterListener" topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
+  </projectListeners>
+
+  <actions resource-bundle="messages.RhipperBundle">
+    <!-- the Copy Reference link of the JetBrains Toolbox knows only JetBrains products -->
+    <unregister id="CopyTBXReference"/>
+
+    <!-- Build | Build Project (Ctrl+F9 in the default keymap) builds the port -->
+    <action id="CompileDirty" class="com.rhipper.ide.pipeline.RhipperBuildPortAction" icon="AllIcons.Actions.Compile">
+      <add-to-group group-id="BuildMenu" anchor="first"/>
+    </action>
+    <group id="Rhipper.PipelineToolbar">
+      <group id="Rhipper.PipelineSteps" class="com.rhipper.ide.pipeline.RhipperStepButtonsGroup"/>
+      <group id="Rhipper.RunFrom" class="com.rhipper.ide.pipeline.RhipperRunFromGroup" icon="AllIcons.Actions.RunAll" popup="true"/>
+      <add-to-group group-id="MainToolbarRight" anchor="before" relative-to-action="NewUiRunWidget"/>
+    </group>
+
+    <group id="Rhipper.Menu" popup="true" icon="com.rhipper.ide.RhipperIcons.Rhipper">
+      <action id="Rhipper.GoToAddress" class="com.rhipper.ide.corpus.RhipperGoToAddressAction"/>
+      <separator/>
+      <reference ref="Rhipper.RunFrom"/>
+      <separator/>
+      <action id="Rhipper.NewProject" class="com.rhipper.ide.newproject.RhipperNewProjectAction" icon="com.rhipper.ide.RhipperIcons.Rhipper"/>
+      <action id="Rhipper.Tools" class="com.rhipper.ide.tools.RhipperToolsAction"/>
+      <add-to-group group-id="ToolsMenu" anchor="first"/>
+    </group>
+
+    <reference ref="Rhipper.NewProject">
+      <add-to-group group-id="NewProjectOrModuleGroup" anchor="first"/>
+      <add-to-group group-id="WelcomeScreen.QuickStart" anchor="first"/>
+    </reference>
+
+    <group id="Rhipper.EditorPopup">
+      <separator/>
+      <action id="Rhipper.OpenDecompilation" class="com.rhipper.ide.corpus.RhipperOpenDecompilationAction"/>
+      <action id="Rhipper.OpenTranslation" class="com.rhipper.ide.corpus.RhipperOpenTranslationAction"/>
+      <action id="Rhipper.OpenDisassembly" class="com.rhipper.ide.corpus.RhipperOpenDisassemblyAction"/>
+      <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+      <add-to-group group-id="ConsoleEditorPopupMenu" anchor="last"/>
+    </group>
+  </actions>
+</idea-plugin>

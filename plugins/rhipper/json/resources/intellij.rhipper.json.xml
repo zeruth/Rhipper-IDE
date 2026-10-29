@@ -1,0 +1,14 @@
+<idea-plugin visibility="internal">
+  <dependencies>
+    <!-- region Generated dependencies - run `Generate Product Layouts` to regenerate -->
+    <module name="intellij.json.backend"/>
+    <module name="intellij.platform.core"/>
+    <module name="intellij.platform.projectModel"/>
+    <module name="intellij.rhipper.core"/>
+    <!-- endregion -->
+  </dependencies>
+
+  <extensions defaultExtensionNs="JavaScript">
+    <JsonSchema.ProviderFactory implementation="com.rhipper.ide.json.RhipperJsonSchemaProviderFactory"/>
+  </extensions>
+</idea-plugin>

@@ -1,0 +1,57 @@
+load("@community//build:tests-options.bzl", "jps_test")
+load("@rules_jvm//:jvm.bzl", "jvm_library")
+
+### auto-generated section `build intellij.rhipper.tests` start
+jvm_library(
+    name = "tests",
+    srcs = glob(
+        [],
+        allow_empty = True,
+    ),
+    module_name = "intellij.rhipper.tests",
+    visibility = ["//visibility:public"],
+    runtime_deps = ["@lib//:kotlin-stdlib"],
+)
+
+jvm_library(
+    name = "tests_test_lib",
+    testonly = True,
+    srcs = glob(
+        [
+            "testSrc/**/*.kt",
+            "testSrc/**/*.java",
+            "testSrc/**/*.form",
+        ],
+        allow_empty = True,
+    ),
+    module_name = "intellij.rhipper.tests",
+    visibility = ["//visibility:public"],
+    runtime_deps = [":tests"],
+    deps = [
+        # do not sort,
+        "@lib//:kotlin-stdlib",
+        "//plugins/rhipper/core",
+        "//plugins/rhipper/core:core_test_lib",
+        "//libraries/junit6",
+        "//libraries/junit6:junit6_test_lib",
+        "//platform/testFramework/junit5",
+        "//platform/testFramework/junit5:junit5_test_lib",
+    ],
+)
+### auto-generated section `build intellij.rhipper.tests` end
+
+### auto-generated section `iml intellij.rhipper.tests` start
+exports_files(
+    [
+        "intellij.rhipper.tests.iml",
+    ],
+    visibility = ["//visibility:public"],
+)
+### auto-generated section `iml intellij.rhipper.tests` end
+
+### auto-generated section `test intellij.rhipper.tests` start
+jps_test(
+    name = "tests_test",
+    runtime_deps = [":tests_test_lib"],
+)
+### auto-generated section `test intellij.rhipper.tests` end
