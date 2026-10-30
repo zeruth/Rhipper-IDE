@@ -9,7 +9,10 @@ import com.intellij.mcpserver.annotations.McpTool
 import com.intellij.mcpserver.project
 import com.intellij.openapi.project.Project
 import com.rhipper.ide.corpus.FidelityChange
+import com.rhipper.ide.corpus.FidelityChanges
 import com.rhipper.ide.corpus.FidelityEntry
+import com.rhipper.ide.corpus.FidelityReport
+import com.rhipper.ide.corpus.RhipperFidelityReports
 import com.rhipper.ide.corpus.FunctionQuery
 import com.rhipper.ide.corpus.FunctionSort
 import com.rhipper.ide.corpus.RhipperCorpus
@@ -340,6 +343,137 @@ internal class RhipperMcpToolset : McpToolset {
     }.toString()
   }
 
+  @McpTool(name = "rhipper_fidelity_report")
+  @McpDescription("""
+    Measures the port and keeps the result as a fidelity report in the IDE: Rhipper's fidelity script, bytes32.py (a 32-bit project's
+    translation built as x86 and compared byte for byte) when bytes=true, and the page fidelity.html. The IDE keeps each report with
+    the project's and Rhipper's commits, so a later pipeline run does not overwrite it; rhipper_fidelity_reports lists them and
+    rhipper_fidelity_report_compare compares any two. Returns the report's summary and what changed since the report before it.
+    keepOnly=true keeps the current build/fidelity.json as a report without measuring again. Measuring takes minutes, bytes32 more.
+  """)
+  suspend fun fidelityReport(
+    @McpDescription("Also measure the bytes (bytes32.py), for the page's accuracy view") bytes: Boolean = true,
+    @McpDescription("A note kept with the report, such as what it measures") label: String = "",
+    @McpDescription("Keep the current build/fidelity.json as it is, without measuring") keepOnly: Boolean = false,
+    @McpDescription("The most functions to list in each change list") limit: Int = 30,
+  ): String {
+    val project = currentCoroutineContext().project
+    requireConfig(project)
+    val reports = RhipperFidelityReports.getInstance(project)
+    val previous = reports.find("latest")
+    val report: FidelityReport
+    var output = ""
+    if (keepOnly) {
+      report = reports.keepCurrent(label) ?: throw McpExpectedError("The project has no build/fidelity.json to keep")
+    }
+    else {
+      val result = reports.make(bytes, label)
+      output = result.output
+      report = result.report ?: return buildJsonObject {
+        put("failedStep", result.failedStep)
+        put("output", result.output.takeLast(6000))
+      }.toString()
+    }
+    return buildJsonObject {
+      put("report", reportJson(report))
+      if (previous != null) {
+        put("comparedWith", previous.id)
+        put("changes", changesJson(reports.compare(previous, report), limit))
+      }
+      if (output.isNotEmpty()) put("outputTail", output.takeLast(3000))
+    }.toString()
+  }
+
+  @McpTool(name = "rhipper_fidelity_reports")
+  @McpDescription("Lists the fidelity reports the IDE keeps for the project, newest first: each one's id, commits, label and summary.")
+  suspend fun fidelityReports(@McpDescription("The most reports to list") limit: Int = 20): String {
+    val project = currentCoroutineContext().project
+    requireConfig(project)
+    val reports = RhipperFidelityReports.getInstance(project)
+    val all = reports.list()
+    return buildJsonObject {
+      put("storage", reports.storage().toString())
+      put("count", all.size)
+      putJsonArray("reports") { all.asReversed().take(limit.coerceIn(1, 200)).forEach { add(reportJson(it)) } }
+    }.toString()
+  }
+
+  @McpTool(name = "rhipper_fidelity_report_compare")
+  @McpDescription("""
+    Compares two kept fidelity reports: the functions that regressed or improved by more than the tolerance, fell below the threshold
+    or rose above it, and those one report has and the other not. A report is named by its id, a prefix of it, latest or previous.
+  """)
+  suspend fun fidelityReportCompare(
+    @McpDescription("The earlier report") from: String = "previous",
+    @McpDescription("The later report") to: String = "latest",
+    @McpDescription("The score below which a function counts as low") threshold: Double = 0.5,
+    @McpDescription("The smallest change of a score that counts") tolerance: Double = 0.005,
+    @McpDescription("The most functions to list in each change list") limit: Int = 50,
+  ): String {
+    val project = currentCoroutineContext().project
+    requireConfig(project)
+    val reports = RhipperFidelityReports.getInstance(project)
+    val before = reports.find(from) ?: throw McpExpectedError("No report '$from'. rhipper_fidelity_reports lists them.")
+    val after = reports.find(to) ?: throw McpExpectedError("No report '$to'. rhipper_fidelity_reports lists them.")
+    return buildJsonObject {
+      put("from", reportJson(before))
+      put("to", reportJson(after))
+      put("changes", changesJson(reports.compare(before, after, threshold, tolerance), limit))
+    }.toString()
+  }
+
+  @McpTool(name = "rhipper_fidelity_report_open")
+  @McpDescription("Opens a kept fidelity report's page in the user's editor: by its id, a prefix of it, latest or previous.")
+  suspend fun fidelityReportOpen(@McpDescription("The report") report: String = "latest"): String {
+    val project = currentCoroutineContext().project
+    requireConfig(project)
+    val reports = RhipperFidelityReports.getInstance(project)
+    val found = reports.find(report) ?: throw McpExpectedError("No report '$report'. rhipper_fidelity_reports lists them.")
+    if (!reports.open(found)) throw McpExpectedError("Report ${found.id} has no page")
+    return "opened ${found.id}"
+  }
+
+  private fun reportJson(report: FidelityReport) = buildJsonObject {
+    put("id", report.id)
+    put("created", report.created.toString())
+    if (report.label.isNotEmpty()) put("label", report.label)
+    put("commit", report.commit)
+    put("genDirty", report.genDirty)
+    put("rhipperCommit", report.rhipperCommit)
+    put("rhipperDirty", report.rhipperDirty)
+    put("bytes", report.hasBytes)
+    put("page", report.hasHtml)
+    val s = report.summary
+    putJsonObject("summary") {
+      put("functions", s.functions)
+      put("scored", s.scored)
+      put("stubs", s.stubs)
+      put("perfect", s.perfect)
+      put("below", s.below)
+      put("average", s.average)
+      put("histogram", JsonArray(s.histogram.map { JsonPrimitive(it) }))
+    }
+  }
+
+  private fun changesJson(changes: FidelityChanges, limit: Int) = buildJsonObject {
+    val max = limit.coerceIn(1, 5000)
+    put("belowNow", changes.belowNow)
+    for ((name, list) in listOf("regressed" to changes.regressed, "improved" to changes.improved, "newlyBelow" to changes.newlyBelow,
+                                "recovered" to changes.recovered, "added" to changes.added, "removed" to changes.removed)) {
+      putJsonObject(name) {
+        put("count", list.size)
+        put("functions", JsonArray(list.take(max).map { change ->
+          buildJsonObject {
+            put("address", formatAddress(change.address))
+            put("name", change.name)
+            put("before", change.before)
+            put("after", change.after)
+          }
+        }))
+      }
+    }
+  }
+
   @McpTool(name = "rhipper_clangd_diagnostics")
   @McpDescription("""
     Reports the errors and warnings that clangd found in the C and C++ files of the project, grouped by diagnostic code, so that a
@@ -435,6 +569,52 @@ internal class RhipperMcpToolset : McpToolset {
     val config = requireConfig(project)
     if (!config.runsPath.isRegularFile()) throw McpExpectedError("No runs of the port are logged yet")
     return Files.readAllLines(config.runsPath).asReversed().take(limit.coerceIn(1, 200)).joinToString("\n")
+  }
+
+  @McpTool(name = "rhipper_step_log")
+  @McpDescription("""
+    Reads the logs of the pipeline's steps in build/pipeline, where each tool of a step writes its output as it runs (functions.log,
+    protos32-0.log, ghidra.log, translate32.log, build.log, run.log, ...). With no name, lists the logs, newest first, with their size
+    and when they were last written: the newest is the one a running step writes. With a name, returns the last lines of that log.
+    Use it to follow a step that rhipper_run_step is still waiting on, or one whose wait timed out.
+  """)
+  suspend fun stepLog(
+    @McpDescription("The log, such as protos32-0 or protos32-0.log; empty to list the logs") name: String = "",
+    @McpDescription("The number of lines from the end") lines: Int = 40,
+  ): String {
+    val project = currentCoroutineContext().project
+    val config = requireConfig(project)
+    val dir = config.pipelineLogPath
+    if (!Files.isDirectory(dir)) throw McpExpectedError("No pipeline logs yet: $dir")
+    val logs = Files.list(dir).use { stream ->
+      stream.filter { it.isRegularFile() && it.fileName.toString().endsWith(".log") }.toList()
+    }.sortedByDescending { Files.getLastModifiedTime(it) }
+    if (name.isBlank()) {
+      return buildJsonObject {
+        put("dir", dir.toString())
+        putJsonArray("logs") {
+          for (log in logs) {
+            add(buildJsonObject {
+              put("name", log.fileName.toString())
+              put("size", Files.size(log))
+              put("modified", Files.getLastModifiedTime(log).toInstant().toString())
+            })
+          }
+        }
+      }.toString()
+    }
+    val fileName = if (name.endsWith(".log")) name else "$name.log"
+    val log = logs.firstOrNull { it.fileName.toString().equals(fileName, ignoreCase = true) }
+              ?: throw McpExpectedError("No log '$fileName' in $dir. The logs: ${logs.joinToString { it.fileName.toString() }}")
+    // (decoded leniently: a log being written can end inside a character)
+    val text = String(Files.readAllBytes(log), Charsets.UTF_8).lines()
+    val count = lines.coerceIn(1, 2000)
+    return buildJsonObject {
+      put("name", log.fileName.toString())
+      put("modified", Files.getLastModifiedTime(log).toInstant().toString())
+      put("lines", text.size)
+      put("tail", text.takeLast(count).joinToString("\n"))
+    }.toString()
   }
 
   @McpTool(name = "rhipper_disassemble")

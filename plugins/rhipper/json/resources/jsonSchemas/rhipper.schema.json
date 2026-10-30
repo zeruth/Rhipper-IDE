@@ -64,7 +64,8 @@
     },
     "facts_extra": {"type": "array", "items": {"type": "string"}, "description": "Project fact extractors, which run with the others."},
     "translate_args": {"type": "array", "items": {"type": "string"}, "default": ["--all", "--depth", "24", "--fix", "--jobs", "4"]},
-    "import_overrides": {"type": "array", "items": {"type": "string"}, "description": "Imports whose adapters the project supplies."},
+    "jobs": {"type": "integer", "minimum": 1, "default": 4, "description": "The workers of a 32-bit pipeline's steps (protos32, translate32, the build's /m). Fewer on a machine another translation shares."},
+    "import_overrides":{"type": "array", "items": {"type": "string"}, "description": "Imports whose adapters the project supplies."},
     "gotchas_reviewed": {
       "type": "object",
       "additionalProperties": {"type": "string"},

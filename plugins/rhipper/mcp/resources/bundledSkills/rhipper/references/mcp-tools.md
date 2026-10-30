@@ -9,6 +9,7 @@ An address can be `0x401000`, `401000`, `FUN_00401000` or `F_00401000`.
 |---|---|---|
 | `rhipper_project` | none | The `rhipper.json` settings, the Rhipper directory, the paths of the outputs, and the state of each step. |
 | `rhipper_run_step` | `step` (facts, ghidra, translate, build, run), `from` (run the later steps too), `timeoutSeconds` (1800) | The exit code and the end of the output. `exitCode: null` means that the run goes on. |
+| `rhipper_step_log` | `name` (empty: list the logs), `lines` (40) | The logs in `build/pipeline`, newest first, or the last lines of one: what a running step is doing. |
 | `rhipper_port_runs` | `limit` (10) | The newest runs of the port from `build/pipeline/runs.jsonl`: the exit code and the fault. |
 
 ## Functions
@@ -47,6 +48,20 @@ The filters of `rhipper_query_functions`. Each one is optional.
 `refresh=true` runs `fidelity32.py --quiet` (x86) or `fidelity.py --summary` (x86-64) first. That measures the built port
 again and takes minutes. `keepSnapshot=true` compares with the same snapshot again, for a fixed baseline.
 The snapshots last as long as the IDE runs.
+
+### Kept reports
+
+The IDE keeps fidelity reports across pipeline runs and restarts, each with the project's and Rhipper's commits.
+
+| Tool | Parameters | Returns |
+|---|---|---|
+| `rhipper_fidelity_report` | `bytes` (true), `label`, `keepOnly`, `limit` (30) | Measures the port (the fidelity script, `bytes32.py` with `bytes`, the page) and keeps the report. Returns its summary and the changes since the report before it. `keepOnly` keeps the current `build/fidelity.json` without measuring. |
+| `rhipper_fidelity_reports` | `limit` (20) | The kept reports, newest first: id, commits, label, summary. |
+| `rhipper_fidelity_report_compare` | `from` ("previous"), `to` ("latest"), `threshold`, `tolerance`, `limit` | The changes between two reports. A report is its id, a prefix of it, `latest` or `previous`. |
+| `rhipper_fidelity_report_open` | `report` ("latest") | Opens the report's page in an editor tab. |
+
+After a pipeline run, make a report with `rhipper_fidelity_report` rather than reading `build/fidelity.json`: the comparison
+with the last report is the run's result, and the report stays after the next run.
 
 ## Diagnostics
 

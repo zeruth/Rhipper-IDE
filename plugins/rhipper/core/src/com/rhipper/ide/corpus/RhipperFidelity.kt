@@ -55,29 +55,34 @@ class RhipperFidelity(private val project: Project) {
         if (!Files.isRegularFile(path)) return@withLock null
         val modified = path.getLastModifiedTime()
         cached?.takeIf { it.first == modified }?.let { return@withLock it }
-        val array = RhipperProjectConfig.parseJson(Files.readString(path)) as? JsonArray ?: return@withLock null
-        val entries = array.mapNotNull { (it as? JsonObject)?.let(::parseEntry) }
+        val entries = parseFidelityEntries(Files.readString(path)) ?: return@withLock null
         Triple(modified, entries, entries.associateBy { it.address }).also { cached = it }
       }
     }
   }
 
-  private fun parseEntry(obj: JsonObject): FidelityEntry? {
-    val address = obj.string("addr")?.let(::parseAddress) ?: return null
-    return FidelityEntry(
-      address = address,
-      name = obj.string("name").orEmpty(),
-      size = (obj["size"] as? JsonPrimitive)?.intOrNull ?: 0,
-      kind = obj.string("kind").orEmpty(),
-      score = (obj["score"] as? JsonPrimitive)?.doubleOrNull,
-      missingCalls = obj.strings("missing_calls"),
-      extraCalls = obj.strings("extra_calls"),
-    )
-  }
-
   companion object {
     fun getInstance(project: Project): RhipperFidelity = project.service()
   }
+}
+
+/** The entries of a `fidelity.json`, or `null` when the text is no report. */
+fun parseFidelityEntries(text: String): List<FidelityEntry>? {
+  val array = RhipperProjectConfig.parseJson(text) as? JsonArray ?: return null
+  return array.mapNotNull { (it as? JsonObject)?.let(::parseEntry) }
+}
+
+private fun parseEntry(obj: JsonObject): FidelityEntry? {
+  val address = obj.string("addr")?.let(::parseAddress) ?: return null
+  return FidelityEntry(
+    address = address,
+    name = obj.string("name").orEmpty(),
+    size = (obj["size"] as? JsonPrimitive)?.intOrNull ?: 0,
+    kind = obj.string("kind").orEmpty(),
+    score = (obj["score"] as? JsonPrimitive)?.doubleOrNull,
+    missingCalls = obj.strings("missing_calls"),
+    extraCalls = obj.strings("extra_calls"),
+  )
 }
 
 private fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull

@@ -92,6 +92,7 @@
 
     <group id="Rhipper.Menu" popup="true" icon="com.rhipper.ide.RhipperIcons.Rhipper">
       <action id="Rhipper.GoToAddress" class="com.rhipper.ide.corpus.RhipperGoToAddressAction"/>
+      <action id="Rhipper.FidelityReports" class="com.rhipper.ide.corpus.RhipperFidelityReportsAction"/>
       <separator/>
       <reference ref="Rhipper.RunFrom"/>
       <separator/>

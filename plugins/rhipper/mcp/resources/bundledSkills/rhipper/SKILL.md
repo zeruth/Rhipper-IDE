@@ -97,7 +97,10 @@ The steps, in order: `facts`, `ghidra`, `translate`, `build`, `run`. `rhipper_ru
 
 - `facts` and `ghidra` take many minutes on a large binary. Run them only when a fact changed.
 - Do not run `run` without a reason: it starts the port and its side processes.
-- When the wait times out, the result has `exitCode: null`, and the run goes on. Check it later with `rhipper_project`.
+- When the wait times out, the result has `exitCode: null`, and the run goes on. Check it later with `rhipper_project`, and
+  follow it with `rhipper_step_log`: with no name it lists the step logs newest first, the newest being the one a running step
+  writes.
+- A 32-bit pipeline runs `jobs` workers (rhipper.json, default 4). Set fewer where another translation shares the machine.
 
 ### Use another Rhipper tool
 
