@@ -6,15 +6,16 @@
 # The `distribution` field of a row names its distribution, and `dev-dist-distributions.json` lists them.
 load("//build:intellij_dev_community.bzl", "intellij_dev_run_configurations")
 
-# A flag list of two or more items that two or more rows state alike, named after the first of those rows.
-_JVM_FLAGS_IDEA_COMMUNITY = [
-    "-Dawt.toolkit.name=auto",
-    "-Dide.assert.get.service.in.static.init=true",
-]
-
 DEV_RUN_CONFIGURATIONS = {
     "android_studio_dev_build": struct(product = "AndroidStudio", distribution = "android_studio_dev_build", jvm_flags = ["-Dawt.toolkit.name=auto"]),  # Android_Studio__dev_build__.xml
-    "idea_community": struct(product = "Idea", distribution = "idea_community", jvm_flags = _JVM_FLAGS_IDEA_COMMUNITY),  # IDEA_Community.xml
+    "idea_community": struct(
+        product = "Idea",  # IDEA_Community.xml
+        distribution = "idea_community",
+        jvm_flags = [
+            "-Dawt.toolkit.name=auto",
+            "-Dide.assert.get.service.in.static.init=true",
+        ],
+    ),
     "idea_with_compose_dev_build": struct(
         product = "Idea",  # IDEA_With_Compose__dev_build_.xml
         distribution = "idea_with_compose_dev_build",
@@ -24,7 +25,19 @@ DEV_RUN_CONFIGURATIONS = {
             "-Djavax.xml.parsers.SAXParserFactory=com.sun.org.apache.xerces.internal.jaxp.SAXParserFactoryImpl",
         ],
     ),
-    "rhipper": struct(product = "Rhipper", distribution = "rhipper", jvm_flags = _JVM_FLAGS_IDEA_COMMUNITY),  # Rhipper.xml
+    "rhipper": struct(
+        product = "Rhipper",  # Rhipper.xml
+        distribution = "rhipper",
+        jvm_flags = [
+            "-Dawt.toolkit.name=auto",
+            "-Dide.assert.get.service.in.static.init=true",
+            "-Dide.splash.show.version=true",
+            "-Didea.disable.collect.statistics=true",
+            "-Didea.suppress.statistics.report=true",
+            "-Dintellij.platform.force.update.app.window.icon=true",
+            "-Dsplash=true",
+        ],
+    ),
 }
 
 def dev_server_run_configurations():

@@ -10,7 +10,8 @@
       "jnaNativeDir": "plugins/jna-plugin/lib/jna",
       "pty4jNativeDir": "plugins/pty4j-plugin/lib/pty4j",
       "skikoNativeDir": "plugins/platform-compose-plugin/lib/skiko-awt-runtime-all",
-      "platformPrefix": "Rhipper"
+      "platformPrefix": "Rhipper",
+      "splash": true
     }
   },
   "customCommands": [
@@ -39,7 +40,10 @@
     ],
     "product": [
       "-Djava.nio.file.spi.DefaultFileSystemProvider=com.intellij.platform.core.nio.fs.MultiRoutingFileSystemProvider",
-      "-Dllm.show.ai.promotion.window.on.start=false"
+      "-Dllm.show.ai.promotion.window.on.start=false",
+      "-Dide.splash.show.version=true",
+      "-Didea.suppress.statistics.report=true",
+      "-Didea.disable.collect.statistics=true"
     ],
     "os": {
       "macOS": [

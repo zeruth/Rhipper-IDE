@@ -1,4 +1,5 @@
 // Copyright 2000-2026 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
+// Modified by the Rhipper contributors, 2026: the community half builds the Rhipper product too.
 package com.intellij.platform.buildScripts.devDistGenerator
 
 import org.jetbrains.annotations.ApiStatus

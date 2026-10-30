@@ -1,10 +1,13 @@
 <component xmlns="http://jetbrains.org/intellij/schema/application-info">
   <version major="2027" minor="1" eap="true"/>
-  <company name="Rhipper" url="https://github.com/zeruth/rhipper-ide" copyrightStart="2026"/>
+  <company name="Rhipper" url="https://github.com/zeruth/Rhipper-IDE" copyrightStart="2026"/>
   <build number="RH-__BUILD__" date="__BUILD_DATE__"/>
+  <logo url="/rhipper_splash.svg"/>
   <icon svg="/rhipper.svg" svg-small="/rhipper_16.svg"/>
   <icon-eap svg="/rhipper.svg" svg-small="/rhipper_16.svg"/>
   <names product="Rhipper" fullname="Rhipper Workbench" script="rhipper" motto="Decompilation Workbench"/>
 
   <essential-plugin>com.intellij.modules.json</essential-plugin>
+  <plugins url="https://github.com/zeruth/Rhipper-IDE" list-url="https://github.com/zeruth/Rhipper-IDE/releases/latest/download/plugins.xml"/>
+  <default-laf light="Blood Moon" dark="Blood Moon"/>
 </component>

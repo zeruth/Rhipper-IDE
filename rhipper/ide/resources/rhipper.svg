@@ -1,4 +1,56 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="24" fill="#1E1F22"/>
-  <path d="M30 98V30h36c14 0 24 9 24 22 0 10-6 18-15 21l19 25H77L60 75H46v23z M46 61h19c6 0 9-4 9-9s-3-9-9-9H46z" fill="#E5533D"/>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a0710"/>
+      <stop offset="1" stop-color="#4a0d14"/>
+    </linearGradient>
+    <radialGradient id="moon" cx="0.42" cy="0.38" r="0.62">
+      <stop offset="0" stop-color="#ff8a65"/>
+      <stop offset="0.5" stop-color="#e5392b"/>
+      <stop offset="1" stop-color="#8a0f16"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ff3d2e" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#ff3d2e" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="blade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffccbc"/>
+      <stop offset="0.4" stop-color="#ef5350"/>
+      <stop offset="1" stop-color="#8a0f16"/>
+    </linearGradient>
+    <clipPath id="clip">
+      <rect width="128" height="128" rx="28"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#clip)">
+    <rect width="128" height="128" fill="url(#tile)"/>
+
+    <!-- blood moon -->
+    <circle cx="86" cy="42" r="40" fill="url(#glow)"/>
+    <circle cx="86" cy="42" r="24" fill="url(#moon)"/>
+    <circle cx="78" cy="35" r="4" fill="#7c0d14" opacity="0.35"/>
+    <circle cx="93" cy="50" r="5" fill="#7c0d14" opacity="0.3"/>
+
+    <!-- graveyard ground -->
+    <path d="M0 104 C30 98 60 102 90 98 C106 96 118 98 128 97 L128 128 L0 128 Z" fill="#12030a"/>
+    <path d="M98 104 v-12 a6 6 0 0 1 12 0 v12 z" fill="#1d050a"/>
+    <path d="M110 92 v12 h-2 v-12 a5 5 0 0 0 -1 -3 a6 6 0 0 1 3 3 z" fill="#c62828" opacity="0.6"/>
+
+    <!-- reaper cloak -->
+    <path d="M52 40 C66 39 74 52 76 70 C78 88 82 104 86 116 L22 116 C30 100 34 84 37 68 C40 50 42 41 52 40 Z" fill="#0b0204"/>
+    <path d="M64 44 C72 52 76 64 77 76 C79 92 82 104 86 116 L82 116 C78 104 75 92 73 78 C72 64 70 52 64 44 Z" fill="#c62828" opacity="0.6"/>
+    <!-- hood -->
+    <path d="M38 64 C34 46 42 32 54 31 C66 30 75 41 73 58 C72 66 68 72 63 75 C56 70 46 68 38 64 Z" fill="#0b0204"/>
+    <path d="M44 60 C45 49 51 43 58 44 C65 45 68 52 66 60 C62 66 50 67 44 60 Z" fill="#030001"/>
+    <circle cx="52" cy="54" r="2.2" fill="#ff5252"/>
+    <circle cx="60" cy="54" r="2.2" fill="#ff5252"/>
+
+    <!-- scythe: staff in front, blade over the hood -->
+    <path d="M30 122 L78 20 L82 22 L34 124 Z" fill="#2b070c"/>
+    <path d="M81 21 L82 22 L34 124 L33 123.5 Z" fill="#ef5350" opacity="0.7"/>
+    <path d="M78 24 C60 10 34 8 12 18 C30 18 48 24 62 36 Z" fill="url(#blade)"/>
+    <path d="M62 36 C48 26 32 21 12 18 C32 28 46 34 56 42 Z" fill="#5a0a10"/>
+    <path d="M78 24 C60 12 36 10 14 18 L12 18 C34 8 60 10 80 23 Z" fill="#ffe0d6" opacity="0.85"/>
+  </g>
 </svg>

@@ -1,0 +1,25 @@
+Rhipper Workbench
+Copyright 2026 the Rhipper contributors
+https://github.com/zeruth/Rhipper-IDE
+
+Rhipper Workbench is a modified version of IntelliJ IDEA Community Edition, the open-source edition of the
+IntelliJ Platform by JetBrains s.r.o. Both are licensed under the Apache License, Version 2.0. The license is in
+LICENSE.txt, and the notice of IntelliJ IDEA is in NOTICE.txt.
+
+Rhipper Workbench is not a product of JetBrains s.r.o. JetBrains does not support, sponsor or endorse it.
+JetBrains, IntelliJ and IntelliJ IDEA are trademarks of JetBrains s.r.o. The Rhipper name, the Rhipper icons,
+the splash image and the installer images are the work of the Rhipper contributors.
+
+The Rhipper contributors made these changes to the IntelliJ Platform:
+
+- They added the Rhipper product: its application info, icons, splash image and installer images, and its build
+  properties.
+- They added the Rhipper plugin: Rhipper projects, the pipeline, the corpus and fidelity views, clangd support,
+  MCP tools, the tools setup and the Rhipper skill.
+- The splash image stays on top of other windows, stays visible for at least four seconds, and can show the
+  product build and the platform version (platform/platform-impl, Splash.kt and SplashManager.kt).
+- The dev-distribution generator builds the Rhipper product (communityDevDistHalf.kt).
+
+Each source file that the Rhipper contributors changed says so in its header.
+
+The third-party software that this distribution includes, and its licenses, are listed in the license directory.

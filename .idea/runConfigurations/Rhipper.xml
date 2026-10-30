@@ -6,7 +6,7 @@
     <option name="MAIN_CLASS_NAME" value="org.jetbrains.intellij.build.devServer.DevMainKt" />
     <module name="intellij.platform.bootstrap.dev.legacy" />
     <shortenClasspath name="ARGS_FILE" />
-    <option name="VM_PARAMETERS" value="-Didea.platform.prefix=Rhipper -Dawt.toolkit.name=auto -Dide.assert.get.service.in.static.init=true" />
+    <option name="VM_PARAMETERS" value="-Didea.platform.prefix=Rhipper -Dsplash=true -Dide.splash.show.version=true -Didea.suppress.statistics.report=true -Didea.disable.collect.statistics=true -Dintellij.platform.force.update.app.window.icon=true -Dawt.toolkit.name=auto -Dide.assert.get.service.in.static.init=true" />
     <method v="2">
       <option name="MakeProject" enabled="true" />
     </method>

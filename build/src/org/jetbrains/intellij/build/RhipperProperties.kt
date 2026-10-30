@@ -1,10 +1,11 @@
-// Copyright 2000-2026 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
+// Copyright 2026 the Rhipper contributors. Use of this source code is governed by the Apache 2.0 license.
 package org.jetbrains.intellij.build
 
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.plus
 import org.jetbrains.intellij.build.impl.PlatformJarNames.PLATFORM_CORE_NIO_FS
+import org.jetbrains.intellij.build.io.copyFileToDir
 import org.jetbrains.intellij.build.productLayout.CommunityModuleSets
 import org.jetbrains.intellij.build.productLayout.CommunityProductFragments
 import org.jetbrains.intellij.build.productLayout.DEFAULT_BUNDLED_PLUGINS
@@ -42,14 +43,15 @@ class RhipperProperties(private val communityHomeDir: Path) : ProductProperties(
     platformPrefix = "Rhipper"
     applicationInfoModule = "intellij.rhipper.ide"
     scrambleMainJar = false
-    useSplash = false
+    useSplash = true
     buildCrossPlatformDistribution = false
     // the launcher reads the JNA, pty4j and Skiko natives from these trees
     presignedNativeLibs = PRESIGNED_NATIVE_LIBS
     // `IJENT_BOOT_CLASSPATH_MODULE`, as in `JetBrainsProductProperties`
     productLayout.addPlatformSpec { layout -> layout.withModule("intellij.platform.core.nio.fs", PLATFORM_CORE_NIO_FS) }
 
-    imagesDirectoryPath = communityHomeDir.resolve("build/idea-community-images")
+    // the product images of every platform: icons, installer bitmaps and the macOS disk image background
+    imagesDirectoryPath = communityHomeDir.resolve("rhipper/ide/images")
     customJvmMemoryOptions = persistentMapOf("-Xms" to "256m", "-Xmx" to "2048m")
 
     productLayout.productImplementationModules = listOf(
@@ -59,7 +61,14 @@ class RhipperProperties(private val communityHomeDir: Path) : ProductProperties(
     productLayout.bundledPluginModules = DEFAULT_BUNDLED_PLUGINS + RHIPPER_BUNDLED_PLUGINS
     productLayout.skipUnresolvedContentModules = true
 
-    additionalVmOptions = persistentListOf("-Dllm.show.ai.promotion.window.on.start=false")
+    additionalVmOptions = persistentListOf(
+      "-Dllm.show.ai.promotion.window.on.start=false",
+      // the splash shows the Rhipper build and the upstream platform version it is based on
+      "-Dide.splash.show.version=true",
+      // no usage statistics: the platform would collect them and send them to the servers of the upstream vendor
+      "-Didea.suppress.statistics.report=true",
+      "-Didea.disable.collect.statistics=true",
+    )
   }
 
   override val baseFileName: String
@@ -85,6 +94,18 @@ class RhipperProperties(private val communityHomeDir: Path) : ProductProperties(
     bundledPlugins(productLayout.bundledPluginModules)
   }
 
+  /**
+   * The license files of the distribution. Apache 2.0 requires the license and the NOTICE of IntelliJ IDEA in every copy.
+   * RHIPPER-NOTICE.txt says what Rhipper changed and who owns the trademarks.
+   */
+  override fun copyAdditionalFiles(targetDir: Path, context: BuildContext) {
+    super.copyAdditionalFiles(targetDir, context)
+    val home = context.paths.communityHomeDir
+    copyFileToDir(home.resolve("LICENSE.txt"), targetDir)
+    copyFileToDir(home.resolve("NOTICE.txt"), targetDir)
+    copyFileToDir(home.resolve("rhipper/ide/RHIPPER-NOTICE.txt"), targetDir)
+  }
+
   override fun getBaseArtifactName(appInfo: ApplicationInfoProperties, buildNumber: String): String = "rhipper-$buildNumber"
 
   override fun getSystemSelector(appInfo: ApplicationInfoProperties, buildNumber: String): String {
@@ -96,6 +117,8 @@ class RhipperProperties(private val communityHomeDir: Path) : ProductProperties(
   override fun createWindowsCustomizer(projectHome: Path): WindowsDistributionCustomizer = windowsCustomizer(communityHomeDir) {
     fullName { "Rhipper Workbench" }
     installDirNameHandler { "Rhipper" }
+    // .ipr is the project file of IntelliJ IDEA, not of Rhipper
+    associateIpr = false
   }
 
   override fun createLinuxCustomizer(projectHome: Path): LinuxDistributionCustomizer = linuxCustomizer(communityHomeDir) {

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The plugin repository of Rhipper Workbench, in the custom plugin repository format of the IntelliJ Platform.
+  Each release of Rhipper-IDE carries this file as an asset, and RhipperApplicationInfo.xml points the plugin manager at
+  the copy in the latest release. Add a plugin as:
+    <plugin id="..." url="https://.../plugin.zip" version="1.0.0">
+      <idea-version since-build="271"/>
+      <name>...</name>
+      <description>...</description>
+    </plugin>
+-->
+<plugins>
+</plugins>
