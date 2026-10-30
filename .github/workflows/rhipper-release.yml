@@ -47,6 +47,16 @@ jobs:
         shell: pwsh
         run: git config --system core.longpaths true
       - uses: actions/checkout@v5
+      # the community build needs JetBrains' android repository beside it, at the revision that this tree builds with
+      - name: Clone the android repository
+        shell: pwsh
+        run: |
+          $revision = (Get-Content rhipper/android-revision.txt -Raw).Trim()
+          git init --quiet android
+          git -C android remote add origin https://github.com/JetBrains/android.git
+          git -C android fetch --quiet --depth 1 origin $revision
+          if ($LASTEXITCODE -ne 0) { throw "Cannot fetch the android revision $revision" }
+          git -C android checkout --quiet FETCH_HEAD
       - name: Build and publish ${{ needs.check.outputs.tag }}
         shell: pwsh
         env:
