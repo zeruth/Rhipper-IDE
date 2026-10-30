@@ -25,7 +25,7 @@ jobs:
       tag: ${{ steps.release.outputs.tag }}
       exists: ${{ steps.release.outputs.exists }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           sparse-checkout: |
             build.txt
@@ -42,7 +42,11 @@ jobs:
     runs-on: ${{ vars.RHIPPER_RUNNER || 'windows-latest' }}
     timeout-minutes: 360
     steps:
-      - uses: actions/checkout@v4
+      # some test data paths are longer than the 260 characters that Windows allows without this setting
+      - name: Allow long paths
+        shell: pwsh
+        run: git config --system core.longpaths true
+      - uses: actions/checkout@v5
       - name: Build and publish ${{ needs.check.outputs.tag }}
         shell: pwsh
         env:
