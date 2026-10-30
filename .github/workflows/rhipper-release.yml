@@ -1,0 +1,50 @@
+# Publishes a Rhipper Workbench release for each push to main that brings a new version.txt.
+# The tag is UPSTREAM.BUILD, see rhipper-release.ps1. A push with a version.txt that has a release already does nothing.
+#
+# The build compiles the whole IDE. A GitHub-hosted runner may run out of disk or time, so the repository variable
+# RHIPPER_RUNNER can name a self-hosted runner label instead.
+name: Rhipper release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rhipper-release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.repository == 'zeruth/rhipper-ide'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      exists: ${{ steps.release.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            build.txt
+            version.txt
+            rhipper-release.ps1
+          sparse-checkout-cone-mode: false
+      - id: release
+        shell: pwsh
+        run: ./rhipper-release.ps1 -Check
+
+  release:
+    needs: check
+    if: needs.check.outputs.exists == 'false'
+    runs-on: ${{ vars.RHIPPER_RUNNER || 'windows-latest' }}
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and publish ${{ needs.check.outputs.tag }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./rhipper-release.ps1 -Publish

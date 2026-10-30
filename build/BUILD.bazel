@@ -162,6 +162,18 @@ java_binary(
     runtime_deps = [":build"],
 )
 
+# The Rhipper Workbench installers. As with i_build_target, the name avoids "installer", which triggers elevation on Windows.
+java_binary(
+    name = "rhipper_build_target",
+    add_opens = INTELLIJ_ADD_OPENS,
+    data = ALL_COMMUNITY_TARGETS + [BAZEL_TARGETS_JSON_COMMUNITY],
+    jvm_flags = [
+        "-Dintellij.build.bazel.targets.json.file=$(rlocationpath %s)" % BAZEL_TARGETS_JSON_COMMUNITY,
+    ],
+    main_class = "RhipperInstallersBuildTarget",
+    runtime_deps = [":build"],
+)
+
 java_binary(
     name = "run_tests_build_target",
     add_opens = INTELLIJ_ADD_OPENS,
