@@ -63,6 +63,24 @@ its callers, and `rhipper_xrefs` for the instructions that read or write a globa
 
 `rhipper_open` opens a view of the function in the user's editor. Use it when the user wants to look at the code too.
 
+### Fix the problem functions in batches (32-bit projects)
+
+The fast loop, one cause at a time:
+
+1. `rhipper_triage`: the stubs and the translations below 1.0, in batches by the defect the most functions share (a stub
+   reason, a missing call, field or constant). The largest first.
+2. `rhipper_triage` with `batch=N`: its functions, the smallest first. Read two or three with `rhipper_function` and
+   `rhipper_disassemble`: the reference's instructions say whether the port is wrong or the measure is.
+3. Fix the cause where it arises: the fact extractor (protos32.py: the facts step), the translator (translate32.py: the
+   translate step), or fidelity32.py where the port is right and the measure missed it.
+4. `rhipper_fidelity_measure` with the batch's `addresses` (the triage result gives them): the batch again in seconds,
+   each function's score before and after. A translator or facts fix needs its steps and a build first.
+5. `rhipper_triage` again: the batches move as they are fixed. `rhipper_fidelity_measure` with `low=true` measures every
+   problem function again.
+
+Add a regression case for each fix to Rhipper's rhtest (tests/rhtest/src), the construct written in C or C++, and rebuild
+its references with `rhtest.py <program> --only ref --save-bins` for both toolsets.
+
 ### Raise the fidelity
 
 1. `rhipper_fidelity_summary`: the scores by kind. A `stub` scores 0 because it has no port yet. Leave the stubs out of a
@@ -100,6 +118,8 @@ The steps, in order: `facts`, `ghidra`, `translate`, `build`, `run`. `rhipper_ru
 - When the wait times out, the result has `exitCode: null`, and the run goes on. Check it later with `rhipper_project`, and
   follow it with `rhipper_step_log`: with no name it lists the step logs newest first, the newest being the one a running step
   writes.
+- A step loads the Rhipper scripts when it starts. After a fix to a script a running step already loaded, stop the run with
+  `rhipper_stop_step` and start it again from that step.
 - A 32-bit pipeline runs `jobs` workers (rhipper.json, default 4). Set fewer where another translation shares the machine.
 
 ### Use another Rhipper tool

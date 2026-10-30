@@ -55,7 +55,19 @@ class RhipperPipelineStatus {
     }
   }
 
+  /** The pipeline process this IDE runs now, or `null`. */
+  @Volatile
+  private var live: ProcessHandler? = null
+
+  /** Stops the pipeline run this IDE started, its child processes too. `false` when none runs. */
+  fun stop(): Boolean {
+    val handler = live?.takeUnless { it.isProcessTerminated || it.isProcessTerminating } ?: return false
+    handler.destroyProcess()
+    return true
+  }
+
   internal fun track(handler: ProcessHandler, first: RhipperStep, scope: RhipperStepScope, arch: RhipperArch) {
+    live = handler
     val planned = if (scope == RhipperStepScope.ONLY) listOf(first) else RhipperStep.entries.drop(first.ordinal)
     var current = first
     val now = Instant.now()
@@ -103,6 +115,7 @@ class RhipperPipelineStatus {
       }
 
       override fun processTerminated(event: ProcessEvent) {
+        if (live === handler) live = null
         val state = if (event.exitCode == 0) RhipperStepState.SUCCEEDED else RhipperStepState.FAILED
         _steps.update { steps ->
           steps.mapValues { (_, status) ->

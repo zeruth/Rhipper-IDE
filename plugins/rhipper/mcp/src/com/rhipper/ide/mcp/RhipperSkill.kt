@@ -17,7 +17,7 @@ internal const val RHIPPER_SKILL_ID: String = "rhipper"
 
 /** The MCP tools that the Rhipper skill uses. */
 internal val RHIPPER_SKILL_TOOLS: Set<String> = setOf(
-  "rhipper_project", "rhipper_run_step", "rhipper_function", "rhipper_query_functions", "rhipper_fidelity_summary",
+  "rhipper_project", "rhipper_run_step", "rhipper_stop_step", "rhipper_function", "rhipper_query_functions", "rhipper_fidelity_summary",
   "rhipper_fidelity_changes", "rhipper_clangd_diagnostics", "rhipper_port_runs", "rhipper_disassemble", "rhipper_callers",
   "rhipper_xrefs", "rhipper_script", "rhipper_open",
 )

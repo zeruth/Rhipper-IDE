@@ -9,6 +9,7 @@ An address can be `0x401000`, `401000`, `FUN_00401000` or `F_00401000`.
 |---|---|---|
 | `rhipper_project` | none | The `rhipper.json` settings, the Rhipper directory, the paths of the outputs, and the state of each step. |
 | `rhipper_run_step` | `step` (facts, ghidra, translate, build, run), `from` (run the later steps too), `timeoutSeconds` (1800) | The exit code and the end of the output. `exitCode: null` means that the run goes on. |
+| `rhipper_stop_step` | none | Stops the pipeline run the IDE started, with its child processes: `stopped` is false when none runs. Use it to restart a step after changing a Rhipper script that the run already loaded. |
 | `rhipper_step_log` | `name` (empty: list the logs), `lines` (40) | The logs in `build/pipeline`, newest first, or the last lines of one: what a running step is doing. |
 | `rhipper_port_runs` | `limit` (10) | The newest runs of the port from `build/pipeline/runs.jsonl`: the exit code and the fault. |
 
@@ -48,6 +49,13 @@ The filters of `rhipper_query_functions`. Each one is optional.
 `refresh=true` runs `fidelity32.py --quiet` (x86) or `fidelity.py --summary` (x86-64) first. That measures the built port
 again and takes minutes. `keepSnapshot=true` compares with the same snapshot again, for a fixed baseline.
 The snapshots last as long as the IDE runs.
+
+### Triage
+
+| Tool | Parameters | Returns |
+|---|---|---|
+| `rhipper_triage` | `batch` (0: the list), `limit` (40) | The problem functions in batches by cause, the largest first; with `batch`, its functions and their defects, and `addresses` for the next tool. |
+| `rhipper_fidelity_measure` | `addresses`, `low` | Those functions (or every problem function, `low`) measured again in seconds and merged into the report: each changed score before and after. |
 
 ### Kept reports
 

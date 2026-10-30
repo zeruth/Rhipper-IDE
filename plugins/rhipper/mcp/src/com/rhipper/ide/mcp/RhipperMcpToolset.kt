@@ -112,6 +112,18 @@ internal class RhipperMcpToolset : McpToolset {
     return runResult(runStepAndWait(project, pipelineStep, scope, timeoutSeconds.coerceIn(1, 24 * 3600) * 1000L))
   }
 
+  @McpTool(name = "rhipper_stop_step")
+  @McpDescription("""
+    Stops the pipeline run that the IDE started (rhipper_run_step or the Run tool window), its child processes too: to restart a
+    step after a fix to the Rhipper scripts it already loaded. The stopped step shows as stopped in rhipper_project.
+  """)
+  suspend fun stopStep(): String {
+    val project = currentCoroutineContext().project
+    requireConfig(project)
+    val stopped = RhipperPipelineStatus.getInstance(project).stop()
+    return buildJsonObject { put("stopped", stopped) }.toString()
+  }
+
   @McpTool(name = "rhipper_function")
   @McpDescription("""
     Returns a function of the reference binary: its address, size, Ghidra's decompilation from the corpus, the translated C from the
@@ -341,6 +353,80 @@ internal class RhipperMcpToolset : McpToolset {
         put(name, value)
       }
     }.toString()
+  }
+
+  @McpTool(name = "rhipper_triage")
+  @McpDescription("""
+    The problem functions of the fidelity report (stubs, and translations below 1.0) in batches by cause, the largest first:
+    each function joins the batch of its defect that the most functions share (a stub reason, a missing or extra call, field or
+    constant), the batch one fix is likeliest to clear whole (Rhipper's triage32.py). With batch, that batch's functions, the
+    smallest first, each with its defects. The loop: rhipper_triage, read a batch's smallest functions with rhipper_function,
+    fix the cause, rhipper_fidelity_measure with the batch's addresses, then rhipper_triage again. A 32-bit project's.
+  """)
+  suspend fun triage(
+    @McpDescription("One batch by its number; empty for the list of batches") batch: Int = 0,
+    @McpDescription("The batches to list, or the functions of one") limit: Int = 40,
+  ): String {
+    val project = currentCoroutineContext().project
+    val config = requireConfig(project)
+    if (config.arch != RhipperArch.X86) throw McpExpectedError("triage32.py is for a 32-bit project")
+    // (the batches written to build/triage.json: a long output is cut in the middle)
+    val result = runScript(project, "triage32.py", listOf("--json"), timeoutMillis = 300_000)
+    if (result.exitCode != 0) return runResult(result)
+    val file = config.buildPath.resolve("triage.json")
+    val all = RhipperProjectConfig.parseJson(Files.readString(file)) as? JsonArray ?: throw McpExpectedError("triage32.py gave no batches")
+    val max = limit.coerceIn(1, 5000)
+    if (batch > 0) {
+      val one = all.firstOrNull { ((it as? kotlinx.serialization.json.JsonObject)?.get("batch") as? JsonPrimitive)?.content == batch.toString() }
+                as? kotlinx.serialization.json.JsonObject ?: throw McpExpectedError("No batch $batch: there are ${all.size}")
+      val functions = one["functions"] as? JsonArray ?: JsonArray(emptyList())
+      return buildJsonObject {
+        put("batch", batch)
+        put("key", one["key"] ?: JsonPrimitive(""))
+        put("count", functions.size)
+        put("addresses", functions.joinToString(" ") { ((it as kotlinx.serialization.json.JsonObject)["addr"] as JsonPrimitive).content })
+        put("functions", JsonArray(functions.take(max)))
+      }.toString()
+    }
+    return buildJsonObject {
+      put("batches", all.size)
+      put("problemFunctions", all.sumOf { (((it as kotlinx.serialization.json.JsonObject)["count"]) as JsonPrimitive).content.toInt() })
+      putJsonArray("list") {
+        for (b in all.take(max)) {
+          val o = b as kotlinx.serialization.json.JsonObject
+          val fs = o["functions"] as? JsonArray ?: JsonArray(emptyList())
+          add(buildJsonObject {
+            put("batch", o["batch"] ?: JsonPrimitive(0))
+            put("count", o["count"] ?: JsonPrimitive(0))
+            put("key", o["key"] ?: JsonPrimitive(""))
+            put("examples", JsonArray(fs.take(3).map { (it as kotlinx.serialization.json.JsonObject)["addr"] ?: JsonPrimitive("") }))
+          })
+        }
+      }
+    }.toString()
+  }
+
+  @McpTool(name = "rhipper_fidelity_measure")
+  @McpDescription("""
+    Measures some functions again, in seconds rather than the whole port's minutes, and merges them into the fidelity report:
+    addresses (a batch's, from rhipper_triage), or low=true for every function the report has below 1.0 or as a stub. Returns each
+    changed function's score before and after, and the totals. Build the port first (rhipper_run_step build) so it measures the fix.
+  """)
+  suspend fun fidelityMeasure(
+    @McpDescription("The functions, addresses separated by spaces or commas") addresses: String = "",
+    @McpDescription("Every function below 1.0 or stubbed in the report, too") low: Boolean = false,
+  ): String {
+    val project = currentCoroutineContext().project
+    val config = requireConfig(project)
+    if (config.arch != RhipperArch.X86) throw McpExpectedError("fidelity32.py --only is for a 32-bit project")
+    val list = addresses.split(Regex("[\\s,]+")).filter { it.isNotBlank() }
+    if (list.isEmpty() && !low) throw McpExpectedError("Give addresses, or low=true")
+    val args = buildList {
+      if (list.isNotEmpty()) { add("--only"); addAll(list) }
+      if (low) add("--low")
+      add("--quiet")
+    }
+    return runResult(runScript(project, "fidelity32.py", args, timeoutMillis = 3_600_000))
   }
 
   @McpTool(name = "rhipper_fidelity_report")
