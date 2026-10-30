@@ -1,4 +1,5 @@
 // Copyright 2000-2026 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
+// Modified by the Rhipper contributors, 2026: the splash stays visible for at least four seconds, and it can show version lines.
 @file:Suppress("JAVA_MODULE_DOES_NOT_EXPORT_PACKAGE")
 package com.intellij.platform.ide.bootstrap
 
@@ -57,6 +58,7 @@ import java.awt.image.ColorModel
 import java.awt.image.DataBufferInt
 import java.awt.image.DirectColorModel
 import java.awt.image.Raster
+import javax.swing.Timer
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.FileChannel
@@ -151,7 +153,7 @@ private fun showSplashIfNeeded(scope: CoroutineScope, initUiScale: Job, appInfoD
       }
 
       val splash = try {
-        Splash(image)
+        Splash(image, splashVersionLines(appInfo))
       }
       catch (e: CancellationException) {
         throw e
@@ -174,6 +176,7 @@ private fun showSplashIfNeeded(scope: CoroutineScope, initUiScale: Job, appInfoD
         span("splash set visible") {
           splash.isVisible = true
         }
+        splashShownAt = System.currentTimeMillis()
 
         val showJob = CompletableDeferred<Unit>()
         splash.addWindowListener(object : WindowAdapter() {
@@ -224,7 +227,18 @@ fun hideSplashBeforeShow(window: Window) {
 
 internal fun hasSplash(): Boolean = SPLASH_WINDOW != null
 
+/** The splash stays at least this long, so it can be seen even when the IDE starts fast. */
+private const val SPLASH_MIN_VISIBLE_MILLIS = 4000L
+
+@Volatile
+private var splashShownAt = 0L
+
 fun hideSplash() {
+  val remaining = splashShownAt + SPLASH_MIN_VISIBLE_MILLIS - System.currentTimeMillis()
+  if (SPLASH_WINDOW != null && remaining > 0) {
+    Timer(remaining.toInt()) { splashJob.get().cancel("hideSplash") }.apply { isRepeats = false }.start()
+    return
+  }
   splashJob.get().cancel("hideSplash")
 }
 
@@ -233,7 +247,23 @@ fun hideSplash() {
  */
 @Internal
 @RequiresEdt
-fun blockingCreateSplash(appInfo: ApplicationInfo): Window = Splash(requireNotNull(blockingLoadSplashImage(appInfo)))
+fun blockingCreateSplash(appInfo: ApplicationInfo): Window =
+  Splash(requireNotNull(blockingLoadSplashImage(appInfo)), splashVersionLines(appInfo))
+
+/**
+ * The version lines of the splash when `ide.splash.show.version` is set: the build of the product, and the version and the build
+ * of the upstream platform it is based on. The upstream line names no product, so a fork shows no trademark of the upstream.
+ */
+private fun splashVersionLines(appInfo: ApplicationInfo): List<String> {
+  if (!java.lang.Boolean.getBoolean("ide.splash.show.version")) {
+    return emptyList()
+  }
+  val build = appInfo.build
+  return listOf(
+    "${appInfo.versionName} build ${build.asString()}",
+    "Upstream ${appInfo.fullVersion} (${build.asStringWithoutProductCode()})",
+  )
+}
 
 @RequiresEdt
 internal fun blockingLoadSplashImage(appInfo: ApplicationInfo): BufferedImage? {

@@ -1,4 +1,5 @@
 // Copyright 2000-2026 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
+// Modified by the Rhipper contributors, 2026: the consents for editing are a mutable copy, also for a product with no consents.
 @file:Suppress("JAVA_MODULE_DOES_NOT_EXPORT_PACKAGE")
 @file:OptIn(LowLevelLocalMachineAccess::class)
 
@@ -335,7 +336,8 @@ object AppUIUtil {
   @RequiresBackgroundThread(generateAssertion = false /* IJPL-115548 */)
   fun loadConsentsForEditing(): List<Consent> {
     val options = ConsentOptions.getInstance()
-    var result = options.consents.first
+    // the consents can be an immutable list, and the code below removes from it
+    var result: MutableList<Consent> = ArrayList(options.consents.first)
     if (options.isEAP) {
       val statConsent = options.defaultUsageStatsConsent
       if (statConsent != null) {
