@@ -1,8 +1,9 @@
-// Copyright 2000-2026 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
+// Copyright 2026 the Rhipper contributors. Use of this source code is governed by the Apache 2.0 license.
 package com.rhipper.ide.tools
 
 import com.intellij.diagnostic.rethrowControlFlowException
 import com.intellij.icons.AllIcons
+import com.intellij.ide.AppLifecycleListener
 import com.intellij.ide.BrowserUtil
 import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationGroupManager
@@ -24,6 +25,11 @@ import com.intellij.platform.util.progress.reportSequentialProgress
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.dsl.builder.panel
 import com.rhipper.ide.RhipperBundle
+import kotlin.io.path.isRegularFile
+import com.rhipper.ide.project.RhipperProjectConfig
+import com.intellij.openapi.application.asContextElement
+import com.intellij.openapi.application.ModalityState
+import com.intellij.openapi.application.ApplicationManager
 import com.rhipper.ide.lsp.RHIPPER_NOTIFICATION_GROUP
 import com.rhipper.ide.project.RhipperProjectService
 import com.rhipper.ide.project.hasRhipperJson
@@ -44,26 +50,34 @@ private val LOG = logger<RhipperToolsInstaller>()
 class RhipperToolsInstaller(private val coroutineScope: CoroutineScope) {
   fun install(project: Project?, tools: List<RhipperTool>, onDone: () -> Unit = {}) {
     if (tools.isEmpty()) return
+    // Rhipper first: the Python environment installs Rhipper's requirements.txt
+    val ordered = tools.sortedBy { it.ordinal }
     coroutineScope.launch {
+      // any modality: an install from a modal dialog, such as the new project dialog, shows its progress at once
+      val dialog = withContext(Dispatchers.EDT + ModalityState.any().asContextElement()) { RhipperInstallDialog(project, ordered).also { it.show() } }
       val failures = LinkedHashMap<RhipperTool, String>()
       val run: suspend () -> Unit = {
-        reportSequentialProgress(tools.size) { reporter ->
-          // Rhipper first: the Python environment installs Rhipper's requirements.txt
-          for (tool in tools.sortedBy { it.ordinal }) {
+        reportSequentialProgress(ordered.size) { reporter ->
+          for (tool in ordered) {
             reporter.itemStep(RhipperBundle.message("tool.installing", tool.displayName)) {
               try {
-                RhipperTools.getInstance().install(tool)
+                RhipperTools.getInstance().install(tool) { stage, done, total ->
+                  ApplicationManager.getApplication().invokeLater({ dialog.update(tool, stage, done, total) }, ModalityState.any())
+                }
               }
               catch (e: Throwable) {
                 rethrowControlFlowException(e)
                 LOG.warn("Cannot install ${tool.name}", e)
                 failures[tool] = e.message ?: e.toString()
               }
+              val error = failures[tool]
+              withContext(Dispatchers.EDT + ModalityState.any().asContextElement()) { dialog.finish(tool, error) }
             }
           }
         }
       }
       if (project != null) withBackgroundProgress(project, RhipperBundle.message("tool.installing.title")) { run() } else run()
+      withContext(Dispatchers.EDT + ModalityState.any().asContextElement()) { dialog.allDone() }
       val installed = tools.filter { it !in failures }
       val content = buildString {
         if (installed.isNotEmpty()) append(RhipperBundle.message("tool.installed", installed.joinToString { it.displayName }))
@@ -191,6 +205,87 @@ internal class RhipperToolsScope(val coroutineScope: CoroutineScope) {
 }
 
 /**
+ * Installs the missing tools at the first launch of the IDE, before the user opens or creates a project, so a first-time user
+ * finds Rhipper, Python, the JDK, Ghidra and clangd ready. A tool that the IDE cannot install, such as CMake, gets a download link.
+ */
+internal class RhipperFirstLaunchSetup : AppLifecycleListener {
+  override fun appStarted() {
+    // a headless run, such as the search index step of the installer build, installs nothing
+    if (ApplicationManager.getApplication().isHeadlessEnvironment) return
+    RhipperToolsScope.getInstance().coroutineScope.launch { setUp() }
+  }
+
+  private suspend fun setUp() {
+    val settings = RhipperSettings.getInstance()
+    if (settings.state.firstLaunchSetupDone || settings.state.setupDismissed) return
+    settings.state.firstLaunchSetupDone = true
+    val missing = RhipperTools.getInstance().status(null).filter { !it.ok }
+    if (missing.isEmpty()) return
+    // the project activity must not offer the same tools again while they install
+    RhipperToolsScope.getInstance().checked.set(true)
+
+    // the JDK is a large download for Ghidra only, so the user decides on it in a warning
+    val installable = missing.filter { it.tool.installable && it.tool != RhipperTool.JDK }.map { it.tool }
+    val manual = missing.filter { !it.tool.installable }
+    if (installable.isNotEmpty()) {
+      notify(null, RhipperBundle.message("tools.first.launch", installable.joinToString { it.displayName }), NotificationType.INFORMATION)
+      RhipperToolsInstaller.getInstance().install(null, installable)
+    }
+    missing.firstOrNull { it.tool == RhipperTool.JDK }?.let { jdk ->
+      notify(null, jdk.problem ?: RhipperBundle.message("tools.jdk.missing"), NotificationType.WARNING) { notification ->
+        notification.addAction(NotificationAction.createSimpleExpiring(RhipperBundle.message("tools.install.own")) {
+          RhipperToolsInstaller.getInstance().install(null, listOf(RhipperTool.JDK))
+        })
+        notification.addAction(NotificationAction.createSimple(RhipperBundle.message("tools.download.tool", jdk.tool.displayName)) {
+          BrowserUtil.browse("https://adoptium.net/temurin/releases/?version=21")
+        })
+      }
+    }
+    if (manual.isNotEmpty()) {
+      notify(null, RhipperBundle.message("tools.missing", manual.joinToString { it.tool.displayName }), NotificationType.WARNING) { notification ->
+        for (status in manual) {
+          val page = status.tool.downloadPage ?: continue
+          notification.addAction(NotificationAction.createSimple(RhipperBundle.message("tools.download.tool", status.tool.displayName)) {
+            BrowserUtil.browse(page)
+          })
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Tells the user when the `rhipper.json` of [config] sets up Rhipper or Ghidra that the IDE has no setting for. A new project
+ * then finds neither. The notification offers to use the project's tools for every project, or to install the IDE's own.
+ */
+private fun offerProjectToolsForAll(project: Project, config: RhipperProjectConfig) {
+  val settings = RhipperSettings.getInstance()
+  val projectHome = config.rhipper?.let { config.resolve(it) }?.takeIf { it.resolve("project.py").isRegularFile() }
+  val projectGhidra = config.ghidra.install?.let { RhipperTools.resolveGlob(config.root, it) }
+  val home = projectHome?.takeIf { settings.rhipperHome(null) == null }
+  val ghidra = projectGhidra?.takeIf { settings.ghidraInstall() == null }
+  val tools = listOfNotNull(home?.let { RhipperTool.RHIPPER }, ghidra?.let { RhipperTool.GHIDRA })
+  if (tools.isEmpty()) return
+
+  val content = RhipperBundle.message("tools.project.only", config.name, tools.joinToString { it.displayName })
+  notify(project, content, NotificationType.INFORMATION) { notification ->
+    notification.addAction(NotificationAction.createSimpleExpiring(RhipperBundle.message("tools.use.for.all")) {
+      if (home != null) settings.state.rhipperHome = home.toString()
+      if (ghidra != null) {
+        settings.state.ghidraInstall = ghidra.toString()
+        settings.state.ghidraProjects = config.ghidra.projects?.let { config.resolve(it).toString() }
+      }
+    })
+    notification.addAction(NotificationAction.createSimpleExpiring(RhipperBundle.message("tools.install.own")) {
+      RhipperToolsInstaller.getInstance().install(project, tools)
+    })
+    notification.addAction(NotificationAction.createSimpleExpiring(RhipperBundle.message("tools.dont.ask")) {
+      settings.state.setupDismissed = true
+    })
+  }
+}
+
+/**
  * Checks the tools once for each IDE session, when the first Rhipper project opens.
  *
  * A first-time user gets an offer to install every missing tool at once. A user of the managed Rhipper gets the newer release.
@@ -226,6 +321,8 @@ internal class RhipperToolsStartupActivity : ProjectActivity {
         })
       }
     }
+
+    if (config != null && !settings.state.setupDismissed) offerProjectToolsForAll(project, config)
 
     if (settings.state.checkForUpdates) {
       val update = try {

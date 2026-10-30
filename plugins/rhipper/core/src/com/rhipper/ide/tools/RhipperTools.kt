@@ -1,4 +1,4 @@
-// Copyright 2000-2026 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
+// Copyright 2026 the Rhipper contributors. Use of this source code is governed by the Apache 2.0 license.
 package com.rhipper.ide.tools
 
 import com.intellij.diagnostic.rethrowControlFlowException
@@ -158,9 +158,11 @@ class RhipperTools {
       }
       RhipperTool.GHIDRA -> {
         val configured = config?.ghidra?.install?.let { resolveGlob(config.root, it) }
+        val global = settings.ghidraInstall()
         when {
           configured != null -> ToolStatus(tool, ToolSource.CONFIGURED, ghidraVersion(configured), configured)
-          managedGhidra != null -> ToolStatus(tool, ToolSource.MANAGED, ghidraVersion(managedGhidra!!), managedGhidra)
+          global != null && global == managedGhidra -> ToolStatus(tool, ToolSource.MANAGED, ghidraVersion(global), global)
+          global != null -> ToolStatus(tool, ToolSource.CONFIGURED, ghidraVersion(global), global)
           else -> ToolStatus(tool, ToolSource.MISSING, problem = config?.ghidra?.install?.let { RhipperBundle.message("tool.ghidra.no.match", it) })
         }
       }
@@ -227,9 +229,10 @@ class RhipperTools {
 
   // region Installs
 
-  /** Installs [tool] into the tools directory. Run it inside a background progress. */
-  suspend fun install(tool: RhipperTool) {
+  /** Installs [tool] into the tools directory, and reports each stage and each downloaded byte to [progress]. */
+  suspend fun install(tool: RhipperTool, progress: InstallProgress = InstallProgress { _, _, _ -> }) {
     mutex.withLock {
+      this.progress = progress
       withContext(Dispatchers.IO) {
         Files.createDirectories(toolsDir)
         when (tool) {
@@ -241,13 +244,18 @@ class RhipperTools {
           RhipperTool.GIT_BASH, RhipperTool.CMAKE -> throw IOException(RhipperBundle.message("tool.not.installable", tool.displayName))
         }
       }
+      this.progress = InstallProgress { _, _, _ -> }
     }
   }
+
+  /** The progress of the install in work. The [mutex] lets one install run at a time. */
+  private var progress = InstallProgress { _, _, _ -> }
 
   private suspend fun installRhipper(version: String) {
     val base = "$RHIPPER_RELEASES/download/v$version/rhipper-$version.zip"
     val zip = download(base, "rhipper-$version.zip")
     val expected = HttpRequests.request("$base.sha256").productNameAsUserAgent().readString().trim().substringBefore(' ').lowercase()
+    progress.update(RhipperBundle.message("tool.stage.checking"), -1, -1)
     val actual = sha256(zip)
     if (expected.isNotEmpty() && expected != actual) {
       Files.deleteIfExists(zip)
@@ -276,12 +284,14 @@ class RhipperTools {
     val venv = toolsDir.resolve("python").resolve("venv")
     val env = mapOf("UV_PYTHON_INSTALL_DIR" to toolsDir.resolve("python").resolve("interpreters").toString(),
                     "UV_CACHE_DIR" to toolsDir.resolve("python").resolve("cache").toString())
+    progress.update(RhipperBundle.message("tool.stage.venv"), -1, -1)
     if (managedPython == null) run(GeneralCommandLine(uv.toString(), "venv", venv.toString(), "--python", PYTHON_VERSION).withEnvironment(env))
     val python = managedPython ?: throw IOException(RhipperBundle.message("tool.python.venv.failed", venv))
     val requirements = RhipperSettings.getInstance().rhipperHome(null)?.resolve("requirements.txt")?.takeIf { it.isRegularFile() }
     val install = GeneralCommandLine(uv.toString(), "pip", "install", "--python", python.toString()).withEnvironment(env)
     if (requirements != null) install.addParameters("-r", requirements.toString())
     else install.addParameters(REQUIRED_MODULES)
+    progress.update(RhipperBundle.message("tool.stage.packages"), -1, -1)
     run(install)
   }
 
@@ -300,6 +310,7 @@ class RhipperTools {
   }
 
   private suspend fun installGhidra() {
+    progress.update(RhipperBundle.message("tool.stage.release"), -1, -1)
     val release = githubJson(GHIDRA_RELEASE_API)
     val asset = assets(release).firstOrNull { (name, _) -> name.startsWith("ghidra_${GHIDRA_VERSION}_PUBLIC") && name.endsWith(".zip") }
                 ?: throw IOException(RhipperBundle.message("tool.asset.missing", "Ghidra $GHIDRA_VERSION"))
@@ -331,9 +342,34 @@ class RhipperTools {
   private suspend fun download(url: String, name: String): Path {
     val target = toolsDir.resolve("downloads").resolve(name)
     Files.createDirectories(target.parent)
+    val stage = RhipperBundle.message("tool.downloading", name)
+    progress.update(stage, 0, -1)
     coroutineToIndicator { indicator ->
-      indicator.text = RhipperBundle.message("tool.downloading", name)
-      HttpRequests.request(url).productNameAsUserAgent().connectTimeout(30_000).saveToFile(target, indicator)
+      indicator.text = stage
+      HttpRequests.request(url).productNameAsUserAgent().connectTimeout(30_000).connect { request ->
+        val total = request.connection.contentLengthLong
+        request.inputStream.use { input ->
+          Files.newOutputStream(target).use { output ->
+            val buffer = ByteArray(1 shl 16)
+            var done = 0L
+            var reported = 0L
+            while (true) {
+              indicator.checkCanceled()
+              val read = input.read(buffer)
+              if (read < 0) break
+              output.write(buffer, 0, read)
+              done += read
+              // a report for each 512 KB keeps the UI updates few
+              if (done - reported >= 512 * 1024) {
+                reported = done
+                if (total > 0) indicator.fraction = done.toDouble() / total
+                progress.update(stage, done, total)
+              }
+            }
+            progress.update(stage, done, total)
+          }
+        }
+      }
     }
     return target
   }
@@ -343,6 +379,7 @@ class RhipperTools {
    * Without it, a single top directory is taken off when [isRoot] does not hold for [target] itself.
    */
   private fun extractInto(archive: Path, target: Path, keepTopDirectory: Boolean = false, isRoot: (Path) -> Boolean) {
+    progress.update(RhipperBundle.message("tool.stage.unpacking", archive.name), -1, -1)
     val staging = target.resolveSibling(target.name + ".unpacking")
     NioFiles.deleteRecursively(staging)
     val decompressor = if (archive.name.endsWith(".zip")) Decompressor.Zip(archive) else Decompressor.Tar(archive)
@@ -473,4 +510,9 @@ class RhipperTools {
       return 0
     }
   }
+}
+
+/** Receives the progress of an install: the [stage] in work and, for a download, the bytes. A negative count is not known. */
+fun interface InstallProgress {
+  fun update(stage: String, done: Long, total: Long)
 }

@@ -44,6 +44,7 @@ jvm_library(
         "//platform/platform-impl:ide-impl",
         "//platform/observable",
         "//platform/progress/shared:ide-progress",
+        "//platform/buildView",
         "//platform/platform-util-io:ide-util-io",
         "//platform/lang-api:lang",
         "//platform/lang-impl",
@@ -87,6 +88,7 @@ jvm_library(
         "//platform/platform-impl:ide-impl_test_lib",
         "//platform/observable:observable_test_lib",
         "//platform/progress/shared:ide-progress_test_lib",
+        "//platform/buildView:buildView_test_lib",
         "//platform/platform-util-io:ide-util-io_test_lib",
         "//platform/lang-api:lang_test_lib",
         "//platform/lang-impl:lang-impl_test_lib",
@@ -104,6 +106,7 @@ jvm_library(
 exports_files(
     [
         "intellij.rhipper.core.iml",
+        "resources/colorSchemes/BloodMoon.xml",
         "resources/intellij.rhipper.core.xml",
     ],
     visibility = ["//visibility:public"],

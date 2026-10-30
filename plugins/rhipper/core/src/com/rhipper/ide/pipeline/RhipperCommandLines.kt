@@ -1,8 +1,9 @@
-// Copyright 2000-2026 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
+// Copyright 2026 the Rhipper contributors. Use of this source code is governed by the Apache 2.0 license.
 package com.rhipper.ide.pipeline
 
 import com.intellij.execution.ExecutionException
 import com.intellij.execution.configurations.GeneralCommandLine
+import com.intellij.execution.configurations.PathEnvironmentVariableUtil
 import com.rhipper.ide.RhipperBundle
 import com.rhipper.ide.project.RhipperArch
 import com.rhipper.ide.project.RhipperProjectConfig
@@ -10,6 +11,18 @@ import com.rhipper.ide.settings.RhipperSettings
 import com.rhipper.ide.tools.RhipperTools
 import java.io.File
 import java.nio.file.Path
+
+/** What a build of the port does. */
+enum class PortBuildMode {
+  /** Compiles what changed. */
+  BUILD,
+
+  /** Deletes the build outputs, then compiles everything. */
+  REBUILD,
+
+  /** Deletes the build outputs only. */
+  CLEAN,
+}
 
 /**
  * Builds the command lines that run Rhipper's tools for a project.
@@ -70,10 +83,48 @@ class RhipperCommandLines(private val config: RhipperProjectConfig, private val 
     return result
   }
 
-  fun buildCommand(): List<String> {
-    val command = arrayListOf("cmake", "--build", config.resolve(config.build.dir).toString(), "--config", config.build.config)
+  fun buildCommand(buildConfig: String = config.build.config): List<String> {
+    val command = arrayListOf("cmake", "--build", config.resolve(config.build.dir).toString(), "--config", buildConfig, "--parallel")
     config.build.target?.let { command.addAll(listOf("--target", it)) }
     return command
+  }
+
+  /**
+   * Builds the port in [buildConfig], such as `Release` or `Debug`. CMake configures first, because a new translation changes the
+   * list of the generated files, as `pipeline32.py` does it.
+   */
+  fun buildPort(buildConfig: String): GeneralCommandLine {
+    val configure = listOf("cmake", config.resolve(config.build.dir).toString())
+    val script = listOf(configure, buildCommand(buildConfig)).joinToString(" && ") { command -> command.joinToString(" ") { shellQuote(it) } }
+    return prepare(GeneralCommandLine(settings.bashExecutable(), "-c", script))
+  }
+
+  /**
+   * The two processes of [buildPort], with no shell between them: the configure step, then the build. [nativeArgs] go to the
+   * native build tool, such as MSBuild. A shell would turn an MSBuild switch such as `/v:minimal` into a path.
+   */
+  fun buildPortSteps(buildConfig: String, nativeArgs: List<String> = emptyList(), mode: PortBuildMode = PortBuildMode.BUILD): List<GeneralCommandLine> {
+    val cmake = PathEnvironmentVariableUtil.findFirst("cmake")?.toString() ?: "cmake"
+    val native = if (nativeArgs.isEmpty()) emptyList() else listOf("--") + nativeArgs
+    val buildDir = config.resolve(config.build.dir).toString()
+    if (mode == PortBuildMode.CLEAN) {
+      return listOf(prepare(GeneralCommandLine(listOf(cmake, "--build", buildDir, "--config", buildConfig, "--target", "clean") + native)))
+    }
+    val configure = listOf(cmake, buildDir)
+    val cleanFirst = if (mode == PortBuildMode.REBUILD) listOf("--clean-first") else emptyList()
+    val build = listOf(cmake) + buildCommand(buildConfig).drop(1) + cleanFirst + native
+    return listOf(configure, build).map { prepare(GeneralCommandLine(it)) }
+  }
+
+  /**
+   * The executable of the port in [buildConfig]. The `run.exe` of the `rhipper.json` names the build configuration in its path,
+   * such as `build/cmake/bin/Release/Game.exe`, so the path of another configuration replaces that segment.
+   */
+  fun portExe(buildConfig: String): Path {
+    val exe = config.run.exe ?: throw ExecutionException(RhipperBundle.message("run.exe.not.set"))
+    val segments = exe.replace('\\', '/').split('/')
+    val replaced = segments.map { if (it.equals(config.build.config, ignoreCase = true)) buildConfig else it }
+    return config.resolve(replaced.joinToString("/"))
   }
 
   fun runCommand(): List<String> {
@@ -81,7 +132,8 @@ class RhipperCommandLines(private val config: RhipperProjectConfig, private val 
     return listOf(config.resolve(exe).toString()) + config.run.args
   }
 
-  private fun prepare(commandLine: GeneralCommandLine): GeneralCommandLine {
+  /** Sets the working directory and the environment that every Rhipper tool expects. */
+  fun prepare(commandLine: GeneralCommandLine): GeneralCommandLine {
     commandLine
       .withWorkingDirectory(config.root)
       .withEnvironment("RHIPPER_PROJECT", config.root.toString())

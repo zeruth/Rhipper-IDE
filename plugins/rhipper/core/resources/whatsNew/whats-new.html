@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>What's New in Rhipper Workbench</title>
+<style>
+  :root {
+    --bg: #140306; --panel: #22060c; --panel-2: #2c0810; --border: #4a0d14;
+    --text: #f3dcd7; --muted: #c99d97; --accent: #e53935; --accent-2: #ff8a65; --rose: #ffd7d0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.6 "Segoe UI", "Inter", system-ui, sans-serif;
+  }
+  a { color: var(--accent-2); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12.5px; background: var(--panel-2);
+         border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; color: var(--rose); }
+  .page { max-width: 980px; margin: 0 auto; padding: 0 32px 64px; }
+
+  .hero { margin: 0 -32px 28px; }
+  .hero-art { display: block; width: 100%; aspect-ratio: 16 / 10; border-radius: 0 0 14px 14px;
+              border: 1px solid var(--border); border-top: none; box-shadow: 0 18px 60px rgba(0, 0, 0, .55); }
+  .hero-text { display: flex; align-items: center; gap: 18px; padding: 22px 32px 0; }
+  .hero-text p { flex: 1; margin: 0; font-size: 16px; color: var(--text); }
+  .build { flex: none; font-size: 12px; color: var(--muted); background: var(--panel);
+           border: 1px solid var(--border); border-radius: 999px; padding: 3px 12px; white-space: nowrap; }
+
+  h2 { margin: 40px 0 12px; font-size: 22px; color: var(--rose); }
+  h2 small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 8px; }
+  p.lead { color: var(--muted); margin-top: 0; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .card h3 { margin: 0 0 6px; font-size: 15px; color: var(--rose); }
+  .card p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .card .icon { display: inline-block; width: 26px; height: 26px; line-height: 26px; text-align: center; border-radius: 7px;
+                background: var(--panel-2); color: var(--accent-2); margin-right: 8px; font-size: 14px; vertical-align: -2px; }
+
+  .pipeline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0 4px; }
+  .step { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; }
+  .step b { color: var(--rose); display: block; font-size: 14px; }
+  .step span { color: var(--muted); font-size: 12px; }
+  .arrow { color: var(--accent); font-size: 18px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+  td:first-child { white-space: nowrap; }
+
+  .prompt { background: var(--panel); border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0;
+            padding: 10px 14px; margin: 8px 0; color: var(--text); font-style: italic; }
+
+  ol.steps { padding-left: 22px; }
+  ol.steps li { margin: 6px 0; }
+
+  .roadmap { position: relative; margin-left: 8px; padding-left: 22px; border-left: 2px solid var(--border); }
+  .roadmap .item { position: relative; margin: 0 0 16px; }
+  .roadmap .item::before { content: ""; position: absolute; left: -29px; top: 6px; width: 12px; height: 12px; border-radius: 50%;
+                           background: var(--panel-2); border: 2px solid var(--accent); }
+  .roadmap .item.now::before { background: var(--accent); }
+  .roadmap h3 { margin: 0; font-size: 15px; color: var(--rose); }
+  .roadmap p { margin: 2px 0 0; color: var(--muted); font-size: 13.5px; }
+
+  footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<section class="hero">
+  <img class="hero-art" src="{{HERO_IMAGE}}" alt="Rhipper, Decompilation Workbench" onerror="this.style.display='none'">
+  <div class="hero-text">
+    <p>A free workbench that turns a Windows PE binary into C that builds and runs. You see every step, you fix the
+       cause of a defect once, and Claude works next to you through the IDE's MCP tools.</p>
+    <div class="build">Build {{BUILD}}</div>
+  </div>
+</section>
+
+<h2>What Rhipper is</h2>
+<p>Rhipper recompiles a Windows binary. It reads facts off the binary, applies them in headless Ghidra, exports the
+   decompilation of every function, and translates it to C that compiles in one round. The port then runs next to the
+   reference, so you can compare the two function by function.</p>
+<p>The workbench gives that pipeline a home. It opens a Rhipper project, runs the steps, shows the state of the port, and
+   takes you from a fault or a low score to the code that causes it. It is built on the open-source IntelliJ Platform.</p>
+
+<div class="pipeline">
+  <div class="step"><b>Facts</b><span>prototypes, vtables, switches</span></div><div class="arrow">&#x276F;</div>
+  <div class="step"><b>Ghidra</b><span>apply facts, export corpus</span></div><div class="arrow">&#x276F;</div>
+  <div class="step"><b>Translate</b><span>C that compiles</span></div><div class="arrow">&#x276F;</div>
+  <div class="step"><b>Build</b><span>the port, with CMake</span></div><div class="arrow">&#x276F;</div>
+  <div class="step"><b>Run</b><span>the port, logged</span></div>
+</div>
+
+<h2>What you can do <small>in this release</small></h2>
+<div class="grid">
+  <div class="card"><h3><span class="icon">&#x25B6;</span>Run the pipeline</h3>
+    <p>Buttons beside the Run widget run one step, or the pipeline from a step to the end. Each step is a run
+       configuration, so its output stays in the Run tool window.</p></div>
+  <div class="card"><h3><span class="icon">&#x2630;</span>See the project</h3>
+    <p>The Rhipper tool window shows the state of each step, the corpus, the translated share, the fidelity of the port
+       and its last runs.</p></div>
+  <div class="card"><h3><span class="icon">&#x2315;</span>Find functions</h3>
+    <p>The Functions tab filters 80,000 functions by name, address, state and fidelity. The Fidelity tab sorts the worst
+       first, with a histogram you can click.</p></div>
+  <div class="card"><h3><span class="icon">&#x21C4;</span>Read every view</h3>
+    <p>Open Ghidra's decompilation, the translated C or the disassembly of a function, from the gutter, the editor, a
+       console link or <b>Tools | Rhipper | Go to Address</b>.</p></div>
+  <div class="card"><h3><span class="icon">C</span>Edit C with clangd</h3>
+    <p>Completion, navigation, hover and diagnostics for C and C++, through clangd. The IDE keeps the diagnostics, so
+       Claude can read them too.</p></div>
+  <div class="card"><h3><span class="icon">&#x2699;</span>Get the tools</h3>
+    <p>The IDE installs Rhipper, a Python environment, JDK 21, Ghidra and clangd for you, and offers new Rhipper releases.
+       See <b>Tools | Rhipper | Tools</b>.</p></div>
+</div>
+
+<h2>Claude and MCP</h2>
+<p>The IDE's MCP server gives Claude the Rhipper workflow. Claude reads the project, finds functions, compares Ghidra's C
+   with the translation, runs pipeline steps in your Run tool window, and polls the fidelity report for regressions.</p>
+<table>
+  <tr><th>Tool</th><th>What Claude can do with it</th></tr>
+  <tr><td><code>rhipper_project</code></td><td>Read the settings, the outputs and the state of each step.</td></tr>
+  <tr><td><code>rhipper_query_functions</code></td><td>Find functions by name, regex, address range, size, state, fidelity and differing calls.</td></tr>
+  <tr><td><code>rhipper_function</code></td><td>Read Ghidra's C, the translated C, the fidelity entry and the clangd diagnostics of one function.</td></tr>
+  <tr><td><code>rhipper_fidelity_changes</code></td><td>Compare the fidelity report with the last snapshot: regressions, improvements, new low scores.</td></tr>
+  <tr><td><code>rhipper_clangd_diagnostics</code></td><td>Group the clangd errors and warnings by code, to find a pattern of the translator.</td></tr>
+  <tr><td><code>rhipper_run_step</code></td><td>Run a pipeline step and wait for its end.</td></tr>
+  <tr><td><code>rhipper_script</code></td><td>Run any Rhipper tool, such as <code>shadow_diff.py</code>, and read its output.</td></tr>
+</table>
+<p>The Rhipper skill teaches Claude Code the rule of the project: fix a defect where it arises, never one function at a
+   time. Add it with <b>Tools | Rhipper | Install Claude Skill</b>. Then ask, for example:</p>
+<div class="prompt">The port faults at startup. Find where it parts from the reference and tell me which fact is wrong.</div>
+<div class="prompt">Show me the twenty worst translated functions, group them by cause, and fix the most common one.</div>
+
+<h2>Get started</h2>
+<ol class="steps">
+  <li>Open a folder with a <code>rhipper.json</code>, or create one with <b>File | New | New Rhipper Project</b>.</li>
+  <li>Let the IDE install what is missing when it asks, or open <b>Tools | Rhipper | Tools</b>.</li>
+  <li>For Claude, turn on <b>Settings | Tools | MCP Server</b>, then add the Rhipper skill to the project.</li>
+  <li>Run the pipeline with the buttons beside the Run widget, and watch the Rhipper tool window.</li>
+</ol>
+
+<h2>Roadmap</h2>
+<div class="roadmap">
+  <div class="item now"><h3>Installer and updates</h3>
+    <p>A Windows installer on GitHub, and updates of the workbench from new releases.</p></div>
+  <div class="item"><h3>One shared syntax tree</h3>
+    <p>The decompilation, the translation and the IDE share one tree, with no round trips through text.</p></div>
+  <div class="item"><h3>Ghidra inside the IDE</h3>
+    <p>Ghidra and Rhipper run in the workbench, not as external tools, and the IDE runs only the steps that a change needs.</p></div>
+  <div class="item"><h3>Side-by-side stepping</h3>
+    <p>Step the reference and the port together, and stop at the first place where they part.</p></div>
+  <div class="item"><h3>More toolchains and languages</h3>
+    <p>More compilers and compile flags in, and more output languages out of the tree.</p></div>
+</div>
+
+<footer>
+  Rhipper Workbench is free software under the Apache License 2.0. It is a modified version of IntelliJ IDEA Community
+  Edition and is not a product of JetBrains. &nbsp;&middot;&nbsp;
+  <a href="https://github.com/zeruth/Rhipper-IDE">Rhipper-IDE on GitHub</a> &nbsp;&middot;&nbsp;
+  <a href="https://github.com/zeruth/Rhipper">Rhipper on GitHub</a>
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,9 +1,8 @@
-// Copyright 2000-2026 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
+// Copyright 2026 the Rhipper contributors. Use of this source code is governed by the Apache 2.0 license.
 package com.rhipper.ide.pipeline
 
 import com.intellij.execution.ExecutionException
 import com.intellij.execution.ProgramRunnerUtil
-import com.intellij.execution.RunManager
 import com.intellij.execution.executors.DefaultRunExecutor
 import com.intellij.execution.process.CapturingProcessHandler
 import com.intellij.execution.process.ProcessEvent
@@ -14,6 +13,7 @@ import com.intellij.openapi.application.EDT
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Key
 import com.rhipper.ide.RhipperBundle
+import com.rhipper.ide.build.RhipperPortBuild
 import com.rhipper.ide.project.rhipperConfig
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -26,16 +26,30 @@ data class RhipperRunResult(val exitCode: Int?, val output: String, val truncate
 private const val OUTPUT_LIMIT = 64 * 1024
 
 /**
- * Runs [step] through its run configuration, so the run shows in the Run tool window, and waits up to [timeoutMillis] for its end.
- * The run goes on when the wait ends.
+ * Runs [step] and waits up to [timeoutMillis] for its end. The build of the port shows in the Build tool window, and its result
+ * lists the compiler and linker diagnostics. Another step shows in the Run tool window and goes on when the wait ends.
  */
-suspend fun runStepAndWait(project: Project, step: RhipperStep, scope: RhipperStepScope, timeoutMillis: Long): RhipperRunResult {
-  project.rhipperConfig ?: throw ExecutionException(RhipperBundle.message("run.configuration.no.project"))
+suspend fun runStepAndWait(
+  project: Project,
+  step: RhipperStep,
+  scope: RhipperStepScope,
+  timeoutMillis: Long,
+): RhipperRunResult {
+  val config = project.rhipperConfig ?: throw ExecutionException(RhipperBundle.message("run.configuration.no.project"))
+  if (step == RhipperStep.BUILD && scope == RhipperStepScope.ONLY) {
+    val build = withTimeoutOrNull(timeoutMillis) { RhipperPortBuild.getInstance(project).build(config.build.config) }
+                ?: return RhipperRunResult(null, "", truncated = false)
+    val diagnostics = build.diagnostics.joinToString("\n") { d ->
+      listOfNotNull(d.file?.let { "$it(${d.line},${d.column ?: 1})" }, "${d.severity.name.lowercase()} ${d.code}: ${d.message}").joinToString(": ")
+    }
+    val summary = RhipperBundle.message("build.summary", build.errors, build.warnings, build.seconds)
+    return RhipperRunResult(build.exitCode, listOf(summary, diagnostics, build.outputTail).filter { it.isNotBlank() }.joinToString("\n\n"),
+                            truncated = false)
+  }
   val output = OutputTail()
   val finished = CompletableDeferred<Int>()
   withContext(Dispatchers.EDT) {
-    val settings = findOrCreateStepConfiguration(project, step, scope)
-    RunManager.getInstance(project).selectedConfiguration = settings
+    val settings = createStepConfiguration(project, step, scope)
     val environment = ExecutionEnvironmentBuilder.create(DefaultRunExecutor.getRunExecutorInstance(), settings).build { descriptor ->
       val handler = descriptor.processHandler
       if (handler == null) {

@@ -1,4 +1,4 @@
-// Copyright 2000-2026 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
+// Copyright 2026 the Rhipper contributors. Use of this source code is governed by the Apache 2.0 license.
 package com.rhipper.ide.pipeline
 
 import com.intellij.execution.ExecutionException
@@ -58,6 +58,9 @@ class RhipperRunConfigurationOptions : RunConfigurationOptions() {
   var step: String? by string(RhipperStep.TRANSLATE.id)
   var scope: RhipperStepScope by enum(RhipperStepScope.ONLY)
   var extraArgs: String? by string()
+
+  /** The CMake configuration of a build step, such as `Debug`. `null` means the pipeline's build, in the configuration of `rhipper.json`. */
+  var buildConfig: String? by string()
 }
 
 /** Runs one step of the Rhipper pipeline, or the pipeline from a step to the end. */
@@ -84,6 +87,12 @@ class RhipperRunConfiguration(project: Project, factory: ConfigurationFactory, n
       options.extraArgs = value.ifBlank { null }
     }
 
+  var buildConfig: String?
+    get() = options.buildConfig
+    set(value) {
+      options.buildConfig = value
+    }
+
   override fun getConfigurationEditor(): SettingsEditor<out RunConfiguration> = RhipperRunConfigurationEditor()
 
   override fun checkConfiguration() {
@@ -94,7 +103,10 @@ class RhipperRunConfiguration(project: Project, factory: ConfigurationFactory, n
 
   override fun getState(executor: Executor, environment: ExecutionEnvironment): RunProfileState {
     val config = project.rhipperConfig ?: throw ExecutionException(RhipperBundle.message("run.configuration.no.project"))
-    val commandLine = RhipperCommandLines(config).pipeline(step, scope, ParametersListUtil.parse(extraArgs))
+    val lines = RhipperCommandLines(config)
+    val buildConfig = options.buildConfig
+    val commandLine = if (step == RhipperStep.BUILD && scope == RhipperStepScope.ONLY && buildConfig != null) lines.buildPort(buildConfig)
+    else lines.pipeline(step, scope, ParametersListUtil.parse(extraArgs))
     val step = step
     val scope = scope
     return object : CommandLineState(environment) {

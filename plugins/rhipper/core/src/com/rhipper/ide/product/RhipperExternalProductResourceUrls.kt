@@ -1,4 +1,4 @@
-// Copyright 2000-2026 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
+// Copyright 2026 the Rhipper contributors. Use of this source code is governed by the Apache 2.0 license.
 package com.rhipper.ide.product
 
 import com.intellij.platform.ide.customization.ExternalProductResourceUrls
@@ -7,7 +7,7 @@ import com.intellij.util.Url
 import com.intellij.util.Urls
 import java.net.URLEncoder
 
-private const val IDE_REPOSITORY = "https://github.com/zeruth/rhipper-ide"
+private const val IDE_REPOSITORY = "https://github.com/zeruth/Rhipper-IDE"
 private const val RHIPPER_REPOSITORY = "https://github.com/zeruth/Rhipper"
 
 /**

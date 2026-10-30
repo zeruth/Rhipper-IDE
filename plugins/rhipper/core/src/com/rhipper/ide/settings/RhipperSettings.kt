@@ -1,4 +1,4 @@
-// Copyright 2000-2026 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
+// Copyright 2026 the Rhipper contributors. Use of this source code is governed by the Apache 2.0 license.
 package com.rhipper.ide.settings
 
 import com.intellij.execution.configurations.PathEnvironmentVariableUtil
@@ -20,6 +20,10 @@ class RhipperSettingsState : BaseState() {
   var python: String? by string()
   var bash: String? by string()
   var clangd: String? by string()
+  /** The Ghidra install for every project, which may be a glob such as `C:/tools/ghidra_*`. Empty means the IDE's own Ghidra. */
+  var ghidraInstall: String? by string()
+  /** The Ghidra projects directory for every project. Empty means the one beside the IDE's own Ghidra. */
+  var ghidraProjects: String? by string()
   var clangdArgs: String? by string("--background-index --header-insertion=never")
   var enableClangd: Boolean by property(true)
   /** The directory of the tools that the IDE installs. Empty means `.rhipper` in the home directory. */
@@ -27,6 +31,8 @@ class RhipperSettingsState : BaseState() {
   var checkForUpdates: Boolean by property(true)
   /** Do not offer to install the missing tools at startup. */
   var setupDismissed: Boolean by property(false)
+  /** The first launch of the IDE installed the missing tools, or tried to. */
+  var firstLaunchSetupDone: Boolean by property(false)
 }
 
 /** The IDE-wide Rhipper settings: where Rhipper and the tools it runs are. */
@@ -44,6 +50,20 @@ class RhipperSettings : SimplePersistentStateComponent<RhipperSettingsState>(Rhi
       .map { config?.root?.resolve(it)?.normalize() ?: Path.of(it) }
       .firstOrNull { Files.isRegularFile(it.resolve("project.py")) }
            ?: RhipperTools.getInstance().managedRhipperHome
+  }
+
+  /** The Ghidra install for every project: this setting, else the Ghidra that the IDE installed. */
+  fun ghidraInstall(): Path? {
+    state.ghidraInstall?.takeIf { it.isNotBlank() }?.let { pattern ->
+      RhipperTools.resolveGlob(Path.of(System.getProperty("user.home")), pattern)?.let { return it }
+    }
+    return RhipperTools.getInstance().managedGhidra
+  }
+
+  /** The Ghidra projects directory for every project, or `null` when no Ghidra is set up. */
+  fun ghidraProjects(): Path? {
+    state.ghidraProjects?.takeIf { it.isNotBlank() }?.let { return Path.of(it) }
+    return if (RhipperTools.getInstance().managedGhidra != null) RhipperTools.getInstance().managedGhidraProjects else null
   }
 
   /** The tools directory: the setting, else `.rhipper` in the home directory. */

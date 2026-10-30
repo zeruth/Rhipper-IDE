@@ -1,4 +1,4 @@
-// Copyright 2000-2026 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
+// Copyright 2026 the Rhipper contributors. Use of this source code is governed by the Apache 2.0 license.
 package com.rhipper.ide.project
 
 import kotlinx.serialization.json.Json
@@ -34,6 +34,8 @@ data class RhipperRunConfig(
   val exe: String?,
   val cwd: String,
   val args: List<String>,
+  /** Side processes that start before the port and stop after it, such as a server it talks to. `{out}` is the log directory. */
+  val with: List<List<String>> = emptyList(),
 )
 
 /** The `ghidra` section: the headless Ghidra install and the project in it. */
@@ -116,6 +118,10 @@ data class RhipperProjectConfig(
           exe = run?.string("exe"),
           cwd = run?.string("cwd") ?: ".",
           args = run?.strings("args") ?: emptyList(),
+          with = (run?.get("with") as? JsonArray)
+                   ?.mapNotNull { command -> (command as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull } }
+                   ?.filter { it.isNotEmpty() }
+                 ?: emptyList(),
         ),
         ghidra = RhipperGhidraConfig(
           install = ghidra?.string("install"),

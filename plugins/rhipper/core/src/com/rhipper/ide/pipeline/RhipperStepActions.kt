@@ -1,4 +1,4 @@
-// Copyright 2000-2026 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
+// Copyright 2026 the Rhipper contributors. Use of this source code is governed by the Apache 2.0 license.
 package com.rhipper.ide.pipeline
 
 import com.intellij.execution.ProgramRunnerUtil
@@ -11,6 +11,7 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
+import com.rhipper.ide.build.RhipperPortBuild
 import com.rhipper.ide.project.rhipperConfig
 
 /** Runs [step] of the pipeline through its run configuration, which the action creates when the project has none. */
@@ -47,26 +48,45 @@ internal class RhipperBuildPortAction : AnAction(), DumbAware {
   }
 }
 
-/** Selects the run configuration of [step] and [scope] in the Run widget and runs it. */
-fun runStep(project: Project, step: RhipperStep, scope: RhipperStepScope) {
-  val settings = findOrCreateStepConfiguration(project, step, scope)
-  RunManager.getInstance(project).selectedConfiguration = settings
-  ProgramRunnerUtil.executeConfiguration(settings, DefaultRunExecutor.getRunExecutorInstance())
+/** Build | Rebuild Project and Build | Clean Port: build the port of the Rhipper project in [mode]. */
+internal sealed class RhipperPortBuildModeAction(private val mode: PortBuildMode) : AnAction(), DumbAware {
+  override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
+
+  override fun update(e: AnActionEvent) {
+    e.presentation.isEnabled = e.project?.rhipperConfig != null
+  }
+
+  override fun actionPerformed(e: AnActionEvent) {
+    val project = e.project ?: return
+    val config = project.rhipperConfig ?: return
+    RhipperPortBuild.getInstance(project).buildAsync(config.build.config, mode)
+  }
 }
 
-internal fun findOrCreateStepConfiguration(project: Project, step: RhipperStep, scope: RhipperStepScope): RunnerAndConfigurationSettings {
-  val runManager = RunManager.getInstance(project)
-  val type = RhipperRunConfigurationType.getInstance()
-  runManager.getConfigurationSettingsList(type).firstOrNull { settings ->
-    val configuration = settings.configuration as? RhipperRunConfiguration
-    configuration != null && configuration.step == step && configuration.scope == scope && configuration.extraArgs.isEmpty()
-  }?.let { return it }
+internal class RhipperRebuildPortAction : RhipperPortBuildModeAction(PortBuildMode.REBUILD)
 
-  val settings = runManager.createConfiguration(RhipperRunConfiguration.presentableName(step, scope), type.factory)
+internal class RhipperCleanPortAction : RhipperPortBuildModeAction(PortBuildMode.CLEAN)
+
+/**
+ * Runs [step] and [scope]. The build of the port shows in the Build tool window. Another step shows in the Run tool window,
+ * through a run configuration that the project does not keep.
+ */
+fun runStep(project: Project, step: RhipperStep, scope: RhipperStepScope) {
+  val config = project.rhipperConfig ?: return
+  if (step == RhipperStep.BUILD && scope == RhipperStepScope.ONLY) {
+    RhipperPortBuild.getInstance(project).buildAsync(config.build.config)
+    return
+  }
+  ProgramRunnerUtil.executeConfiguration(createStepConfiguration(project, step, scope), DefaultRunExecutor.getRunExecutorInstance())
+}
+
+/** A run configuration of [step] and [scope] that the Run Manager does not keep, so a step run adds no entry to the Run widget. */
+internal fun createStepConfiguration(project: Project, step: RhipperStep, scope: RhipperStepScope): RunnerAndConfigurationSettings {
+  val type = RhipperRunConfigurationType.getInstance()
+  val settings = RunManager.getInstance(project).createConfiguration(RhipperRunConfiguration.presentableName(step, scope), type.factory)
   val configuration = settings.configuration as RhipperRunConfiguration
   configuration.step = step
   configuration.scope = scope
-  runManager.addConfiguration(settings)
   return settings
 }
 

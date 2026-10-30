@@ -19,6 +19,7 @@
     <module name="intellij.platform.ide.impl"/>
     <module name="intellij.platform.ide.observable"/>
     <module name="intellij.platform.ide.progress"/>
+    <module name="intellij.platform.buildView"/>
     <module name="intellij.platform.lang"/>
     <module name="intellij.platform.lang.impl"/>
     <module name="intellij.platform.lsp"/>
@@ -43,14 +44,26 @@
     <directoryIndexExcludePolicy implementation="com.rhipper.ide.project.RhipperExcludePolicy"/>
     <postStartupActivity implementation="com.rhipper.ide.project.RhipperStartupActivity"/>
     <postStartupActivity implementation="com.rhipper.ide.tools.RhipperToolsStartupActivity"/>
+    <postStartupActivity implementation="com.rhipper.ide.whatsnew.RhipperWhatsNewActivity"/>
 
     <platform.lsp.integrationProvider implementation="com.rhipper.ide.lsp.ClangdLspIntegrationProvider"/>
 
     <configurationType implementation="com.rhipper.ide.pipeline.RhipperRunConfigurationType"/>
+    <configurationType implementation="com.rhipper.ide.pipeline.RhipperApplicationRunConfigurationType"/>
+    <stepsBeforeRunProvider implementation="com.rhipper.ide.pipeline.RhipperBuildPortTaskProvider"/>
+    <postStartupActivity implementation="com.rhipper.ide.pipeline.RhipperRunConfigurationsSetup"/>
     <consoleFilterProvider implementation="com.rhipper.ide.console.RhipperConsoleFilterProvider"/>
+
+    <themeProvider id="Blood Moon" path="/themes/BloodMoon.theme.json" targetUi="islands"/>
+    <bundledColorScheme id="Blood Moon" path="/colorSchemes/BloodMoon.xml"/>
 
     <notificationGroup id="Rhipper" displayType="BALLOON" bundle="messages.RhipperBundle" key="notification.group.name"/>
   </extensions>
+
+  <applicationListeners>
+    <listener class="com.rhipper.ide.whatsnew.RhipperWhatsNewCloser" topic="com.intellij.openapi.project.ProjectCloseListener"/>
+    <listener class="com.rhipper.ide.tools.RhipperFirstLaunchSetup" topic="com.intellij.ide.AppLifecycleListener"/>
+  </applicationListeners>
 
   <projectListeners>
     <listener class="com.rhipper.ide.corpus.RhipperGenGutterListener" topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
@@ -63,6 +76,13 @@
     <!-- Build | Build Project (Ctrl+F9 in the default keymap) builds the port -->
     <action id="CompileDirty" class="com.rhipper.ide.pipeline.RhipperBuildPortAction" icon="AllIcons.Actions.Compile">
       <add-to-group group-id="BuildMenu" anchor="first"/>
+    </action>
+    <!-- Build | Rebuild Project deletes the port's build outputs first -->
+    <action id="CompileProject" class="com.rhipper.ide.pipeline.RhipperRebuildPortAction" icon="AllIcons.Actions.ForceRefresh">
+      <add-to-group group-id="BuildMenu" anchor="after" relative-to-action="CompileDirty"/>
+    </action>
+    <action id="Rhipper.CleanPort" class="com.rhipper.ide.pipeline.RhipperCleanPortAction" icon="AllIcons.Actions.GC">
+      <add-to-group group-id="BuildMenu" anchor="after" relative-to-action="CompileProject"/>
     </action>
     <group id="Rhipper.PipelineToolbar">
       <group id="Rhipper.PipelineSteps" class="com.rhipper.ide.pipeline.RhipperStepButtonsGroup"/>
@@ -79,6 +99,11 @@
       <action id="Rhipper.Tools" class="com.rhipper.ide.tools.RhipperToolsAction"/>
       <add-to-group group-id="ToolsMenu" anchor="first"/>
     </group>
+
+    <action id="Rhipper.WhatsNew" class="com.rhipper.ide.whatsnew.RhipperWhatsNewAction" icon="com.rhipper.ide.RhipperIcons.Rhipper">
+      <add-to-group group-id="HelpMenu" anchor="first"/>
+      <add-to-group group-id="Rhipper.Menu" anchor="last"/>
+    </action>
 
     <reference ref="Rhipper.NewProject">
       <add-to-group group-id="NewProjectOrModuleGroup" anchor="first"/>

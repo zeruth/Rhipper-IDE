@@ -1,0 +1,83 @@
+{
+  "name": "Blood Moon",
+  "dark": true,
+  "author": "the Rhipper contributors",
+  "parentTheme": "Islands Dark",
+  "editorScheme": "Blood Moon",
+
+  "colors": {
+    "gray-10": "#170709",
+    "gray-20": "#1D0A0D",
+    "gray-30": "#260E12",
+    "gray-40": "#311419",
+    "gray-50": "#3D1A20",
+    "gray-60": "#4B2228",
+    "gray-70": "#5C2C33",
+    "gray-80": "#764149",
+    "gray-90": "#8C5B62",
+    "gray-100": "#A6777E",
+    "gray-110": "#BA9096",
+    "gray-120": "#CAA6AB",
+    "gray-130": "#DBC1C4",
+    "gray-140": "#E7D4D6",
+    "gray-150": "#F1E4E5",
+    "gray-160": "#F9F1F1",
+
+    "blue-10": "#240608",
+    "blue-20": "#2D080B",
+    "blue-30": "#3A0A0F",
+    "blue-40": "#4E0D14",
+    "blue-50": "#63111A",
+    "blue-60": "#7A1520",
+    "blue-70": "#9A1B25",
+    "blue-80": "#C62828",
+    "blue-90": "#E53935",
+    "blue-100": "#FF6F60",
+    "blue-110": "#FF8A7A",
+    "blue-120": "#FFA699",
+    "blue-130": "#FFC1B8",
+    "blue-140": "#FFD6D0",
+    "blue-150": "#FFE7E3",
+    "blue-160": "#FFF4F2",
+
+    "editor-text": "#E9D5D3",
+
+    "toggle-on-bg": "#C62828",
+    "toggle-on-border": "#C62828",
+    "toggle-focus-border": "#E53935"
+  },
+
+  "ui": {
+    "RecentProject": {
+      "Color1": { "MainToolbarGradientStart": "#4A0F16", "Avatar": { "Start": "#D23A44", "End": "#8E1B24" } },
+      "Color2": { "MainToolbarGradientStart": "#4A0F16", "Avatar": { "Start": "#D23A44", "End": "#8E1B24" } },
+      "Color3": { "MainToolbarGradientStart": "#4A0F16", "Avatar": { "Start": "#D23A44", "End": "#8E1B24" } },
+      "Color4": { "MainToolbarGradientStart": "#4A0F16", "Avatar": { "Start": "#D23A44", "End": "#8E1B24" } },
+      "Color5": { "MainToolbarGradientStart": "#4A0F16", "Avatar": { "Start": "#D23A44", "End": "#8E1B24" } },
+      "Color6": { "MainToolbarGradientStart": "#4A0F16", "Avatar": { "Start": "#D23A44", "End": "#8E1B24" } },
+      "Color7": { "MainToolbarGradientStart": "#4A0F16", "Avatar": { "Start": "#D23A44", "End": "#8E1B24" } },
+      "Color8": { "MainToolbarGradientStart": "#4A0F16", "Avatar": { "Start": "#D23A44", "End": "#8E1B24" } },
+      "Color9": { "MainToolbarGradientStart": "#4A0F16", "Avatar": { "Start": "#D23A44", "End": "#8E1B24" } }
+    },
+    "FileColor": {
+      "Yellow": "#2A140E",
+      "Green": "#1B1E13",
+      "Orange": "#3A1A10",
+      "Rose": "#3D1218",
+      "Violet": "#2E1424",
+      "Blue": "#24121E",
+      "Gray": "#261317"
+    }
+  },
+
+  "icons": {
+    "ColorPalette": {
+      "#3574F0": "#E53935",
+      "#548AF7": "#FF6F60",
+      "#4682FA": "#FF6F60",
+      "#3871E1": "#C62828",
+      "#5C92F6": "#FF6F60",
+      "#6B9BFA": "#FF8A7A"
+    }
+  }
+}

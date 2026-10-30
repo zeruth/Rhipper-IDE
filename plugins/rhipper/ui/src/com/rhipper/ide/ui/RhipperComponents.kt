@@ -1,4 +1,4 @@
-// Copyright 2000-2026 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.
+// Copyright 2026 the Rhipper contributors. Use of this source code is governed by the Apache 2.0 license.
 package com.rhipper.ide.ui
 
 import androidx.compose.foundation.background
@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,17 +35,24 @@ import org.jetbrains.jewel.foundation.theme.JewelTheme
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.icon.PathIconKey
 
-/** The colors of the Rhipper views. Each has a light and a dark variant, as the New UI status colors do. */
+/**
+ * The colors of the Rhipper views. The surfaces and the accent come from the current theme, so the views follow Blood Moon or any
+ * other theme. The status colors have a light and a dark variant, as the New UI status colors do.
+ */
 internal object RhipperColors {
   val success: Color @Composable get() = pick(Color(0xFF208A3C), Color(0xFF5FB865))
   val error: Color @Composable get() = pick(Color(0xFFDB3B4B), Color(0xFFE55765))
   val warning: Color @Composable get() = pick(Color(0xFFC27D04), Color(0xFFF2C55C))
-  val accent: Color @Composable get() = pick(Color(0xFF3574F0), Color(0xFF548AF7))
+
+  /** The accent of the theme: the color of a focused control. */
+  val accent: Color @Composable get() = JewelTheme.globalColors.outlines.focused
   val neutral: Color @Composable get() = JewelTheme.globalColors.text.info
-  val cardBackground: Color @Composable get() = pick(Color(0xFFF7F8FA), Color(0xFF2B2D30))
-  val track: Color @Composable get() = pick(Color(0xFFEBECF0), Color(0xFF393B40))
+
+  /** A card stands a little above the panel: the panel color, a step toward the text color. */
+  val cardBackground: Color @Composable get() = lerp(JewelTheme.globalColors.panelBackground, JewelTheme.globalColors.text.normal, 0.04f)
+  val track: Color @Composable get() = lerp(JewelTheme.globalColors.panelBackground, JewelTheme.globalColors.text.normal, 0.12f)
   val border: Color @Composable get() = JewelTheme.globalColors.borders.normal
-  val selection: Color @Composable get() = accent.copy(alpha = 0.16f)
+  val selection: Color @Composable get() = accent.copy(alpha = 0.18f)
 
   @Composable
   private fun pick(light: Color, dark: Color): Color = if (JewelTheme.isDark) dark else light
