@@ -7,13 +7,8 @@
       "productionJars": [
         "out/bazel-out/jvm-fastbuild/bin/module/module.jar"
       ],
-      "testTargets": [
-        "@community//module:module_test_lib.jar"
-      ],
-      "testJars": [
-        "out/bazel-out/jvm-fastbuild/bin/module/module_test_lib.jar"
-      ],
-      "exports": [],
+      "testTargets": [],
+      "testJars": [],
       "moduleLibraries": {}
     },
     "intellij.module2": {
@@ -23,13 +18,8 @@
       "productionJars": [
         "out/bazel-out/jvm-fastbuild/bin/module2/module2.jar"
       ],
-      "testTargets": [
-        "@community//module2:module2_test_lib.jar"
-      ],
-      "testJars": [
-        "out/bazel-out/jvm-fastbuild/bin/module2/module2_test_lib.jar"
-      ],
-      "exports": [],
+      "testTargets": [],
+      "testJars": [],
       "moduleLibraries": {}
     },
     "intellij.plugin": {
@@ -39,13 +29,8 @@
       "productionJars": [
         "out/bazel-out/jvm-fastbuild/bin/plugin/plugin.jar"
       ],
-      "testTargets": [
-        "@community//plugin:plugin_test_lib.jar"
-      ],
-      "testJars": [
-        "out/bazel-out/jvm-fastbuild/bin/plugin/plugin_test_lib.jar"
-      ],
-      "exports": [],
+      "testTargets": [],
+      "testJars": [],
       "moduleLibraries": {}
     }
   },

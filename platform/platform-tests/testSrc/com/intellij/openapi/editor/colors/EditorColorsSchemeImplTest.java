@@ -14,7 +14,9 @@ import com.intellij.openapi.editor.colors.impl.AppEditorFontOptions;
 import com.intellij.openapi.editor.colors.impl.EditorColorsManagerImpl;
 import com.intellij.openapi.editor.colors.impl.EditorColorsSchemeImpl;
 import com.intellij.openapi.editor.colors.impl.FontPreferencesImpl;
+import com.intellij.openapi.editor.ex.util.LayeredTextAttributes;
 import com.intellij.openapi.editor.markup.EffectType;
+import com.intellij.openapi.editor.markup.FontFamilies;
 import com.intellij.openapi.editor.markup.TextAttributes;
 import com.intellij.openapi.options.SchemeManager;
 import com.intellij.openapi.util.InvalidDataException;
@@ -350,6 +352,36 @@ public class EditorColorsSchemeImplTest {
     assertEquals(new Color(0xAF, 0x1D, 0x1D), result.second.getForegroundColor());
   }
 
+  @Test
+  public void testTextAttributesFontFamiliesSurviveWriteRead() {
+    TextAttributesKey key = TextAttributesKey.createTextAttributesKey("TEST_FONT_FAMILIES_ROUND_TRIP");
+    TextAttributes attributes = new TextAttributes(new Color(0x112233), null, null, EffectType.BOXED, Font.PLAIN);
+    attributes.setFontFamilies(FontFamilies.of("JetBrains Mono", "Noto Sans CJK JP"));
+
+    Pair<EditorColorsScheme, TextAttributes> result = doTestWriteRead(key, attributes);
+
+    assertEquals(attributes, result.second);
+  }
+
+  @Test
+  public void testLayeredTextAttributesKeepFontFamilies() {
+    EditorColorsScheme defaultScheme = EditorColorsManager.getInstance().getScheme(EditorColorsScheme.getDefaultSchemeName());
+    EditorColorsScheme scheme = (EditorColorsScheme)defaultScheme.clone();
+    TextAttributesKey under = TextAttributesKey.createTextAttributesKey("TEST_LAYERED_FONT_FAMILIES_UNDER");
+    TextAttributesKey above = TextAttributesKey.createTextAttributesKey("TEST_LAYERED_FONT_FAMILIES_ABOVE");
+    TextAttributes underAttributes = new TextAttributes(new Color(0x112233), null, null, null, Font.PLAIN);
+    underAttributes.setFontFamilies(FontFamilies.of("JetBrains Mono"));
+    scheme.setAttributes(under, underAttributes);
+    scheme.setAttributes(above, new TextAttributes(null, new Color(0x445566), null, null, Font.BOLD));
+
+    LayeredTextAttributes layered = LayeredTextAttributes.create(scheme, new TextAttributesKey[]{under, above});
+
+    assertEquals(FontFamilies.of("JetBrains Mono"), layered.getFontFamilies());
+    assertEquals(new Color(0x112233), layered.getForegroundColor());
+    assertEquals(new Color(0x445566), layered.getBackgroundColor());
+    assertEquals(Font.BOLD, layered.getFontType());
+  }
+
   private void enableTextAttributesTransparency() {
     Registry.get("editor.text.attributes.transparency").setValue(true, testRootDisposable);
   }
@@ -633,6 +665,16 @@ public class EditorColorsSchemeImplTest {
     editorColorsScheme.setName("Test");
     editorColorsScheme.setColor(EditorColors.TEARLINE_COLOR, new Color(255, 0, 0));
     assertFalse(editorColorsScheme.settingsEqual(defaultScheme));
+  }
+
+  @Test
+  public void testSettingsEqualIgnoresMetaInfo() {
+    EditorColorsScheme defaultScheme = EditorColorsManager.getInstance().getScheme(EditorColorsScheme.getDefaultSchemeName());
+    AbstractColorsScheme scheme = (AbstractColorsScheme)defaultScheme.clone();
+    AbstractColorsScheme otherScheme = (AbstractColorsScheme)defaultScheme.clone();
+    scheme.getMetaProperties().setProperty(AbstractColorsScheme.META_INFO_PLUGIN_ID, "test.plugin");
+    assertFalse(scheme.settingsEqual(otherScheme, null, false));
+    assertTrue(scheme.settingsEqual(otherScheme, null, true));
   }
 
   @Test

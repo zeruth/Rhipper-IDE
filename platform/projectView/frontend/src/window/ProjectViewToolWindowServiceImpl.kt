@@ -16,6 +16,7 @@ import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import com.intellij.openapi.components.StoragePathMacros
+import com.intellij.openapi.components.service
 import com.intellij.openapi.components.serviceAsync
 import com.intellij.openapi.diagnostic.debug
 import com.intellij.openapi.diagnostic.logger
@@ -25,6 +26,7 @@ import com.intellij.openapi.fileEditor.FileEditorManagerListener
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.Key
+import com.intellij.openapi.util.NlsSafe
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowContentUiType
@@ -36,10 +38,12 @@ import com.intellij.platform.projectView.actions.ProjectViewActionSupport
 import com.intellij.platform.projectView.frontend.actions.ProjectViewActionSupportImpl
 import com.intellij.platform.projectView.frontend.actions.ProjectViewToolbarActionGroup
 import com.intellij.platform.projectView.frontend.actions.SplitProjectViewAutoscrollFromSource
+import com.intellij.platform.projectView.frontend.impl.CachedFrontendProjectViewPane
 import com.intellij.platform.projectView.frontend.impl.FrontendProjectViewUpdateRequestsService
 import com.intellij.platform.projectView.frontend.impl.TreeBasedFrontendProjectViewPane
 import com.intellij.platform.projectView.frontend.pane.FrontendProjectViewPane
 import com.intellij.platform.projectView.frontend.pane.FrontendProjectViewPaneAggregator
+import com.intellij.platform.projectView.frontend.pane.RestorePaneStateOptions
 import com.intellij.platform.projectView.frontend.pane.RestorePaneStateOptionsImpl
 import com.intellij.platform.projectView.frontend.pane.id
 import com.intellij.platform.projectView.pane.ProjectViewClearStateEvent
@@ -57,7 +61,6 @@ import com.intellij.ui.content.ContentManagerListener
 import com.intellij.util.AwaitCancellationAndInvoke
 import com.intellij.util.awaitCancellationAndInvoke
 import com.intellij.util.concurrency.annotations.RequiresEdt
-import com.intellij.util.ui.launchOnShow
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.Dispatchers
@@ -110,13 +113,35 @@ internal class ProjectViewToolWindowServiceImpl(
   val panes: Map<ProjectViewPaneId, FrontendProjectViewPane>
     field = ConcurrentHashMap<ProjectViewPaneId, FrontendProjectViewPane>()
   private val activePanes = ConcurrentHashMap.newKeySet<ProjectViewPaneId>()
-  private val currentPaneListener: ContentManagerListener = object : ContentManagerListener {
+  /**
+   * Restores the state of a pane when it becomes selected and saves it when it becomes unselected.
+   *
+   * The content manager also unselects the selected content before it removes it, so a removed pane saves its state too.
+   * The cached pane saves its state the same way, so the real pane with the same ID restores it.
+   * Both happen in the same EDT event as the selection change, even if the tool window is hidden.
+   */
+  private val paneSelectionListener: ContentManagerListener = object : ContentManagerListener {
     override fun selectionChanged(event: ContentManagerEvent) {
-      if (event.operation == ContentManagerEvent.ContentOperation.add) {
-        val newPane = event.content.getUserData(PANE_KEY)
-        val oldPane = currentPaneMutableFlow.value
-        currentPaneMutableFlow.value = newPane
-        currentPaneChanged(oldPane, newPane)
+      val pane = event.content.getUserData(PANE_KEY)
+      when (event.operation) {
+        ContentManagerEvent.ContentOperation.add -> {
+          if (pane != null) {
+            loadPaneState(pane)
+          }
+          val oldPane = currentPaneMutableFlow.value
+          currentPaneMutableFlow.value = pane
+          currentPaneChanged(oldPane, pane)
+        }
+        ContentManagerEvent.ContentOperation.remove -> {
+          if (pane != null) {
+            savePaneStateIfActive(pane)
+          }
+          val cachedPane = event.content.getUserData(CACHED_PANE_KEY)
+          if (cachedPane != null) {
+            saveCachedPaneState(cachedPane)
+          }
+        }
+        ContentManagerEvent.ContentOperation.undefined, null -> { }
       }
     }
   }
@@ -141,6 +166,49 @@ internal class ProjectViewToolWindowServiceImpl(
     if (action != null) toolWindow.setTitleActions(listOf(ProjectViewToolbarActionGroup(action)))
     toolWindow.setAdditionalGearActions(menuActionGroup)
     toolWindow.component.putClientProperty(ToolWindowContentUi.HIDE_ID_LABEL, "true")
+    try {
+      addCachedPaneContent(toolWindow)
+    }
+    catch (e: Throwable) {
+      rethrowControlFlowException(e)
+      LOG.error("Failed to add the cached pane", e)
+    }
+  }
+
+  /**
+   * Shows the cached tree of the pane to select until the first real pane is added.
+   *
+   * The pane to select is the same as the one that [manageToolWindow] selects.
+   */
+  @RequiresEdt
+  private fun addCachedPaneContent(toolWindow: ToolWindow) {
+    if (!stateInitJob.isCompleted) {
+      LOG.debug { "The saved state is not loaded yet, not showing the cached pane" }
+      return
+    }
+    val paneId = getStartupPaneId(service<ProjectFrameCapabilitiesService>()) ?: persistentState.getSelectedPaneState() ?: return
+    val paneElement = persistentState.getPaneState(paneId)?.element
+    @Suppress("HardCodedStringLiteral") // the name is saved from the descriptor
+    val presentableName: @NlsSafe String? = paneElement?.getAttributeValue(PRESENTABLE_NAME_ATTRIBUTE)
+    if (paneElement == null || presentableName == null) {
+      LOG.debug { "The pane $paneId has no saved state or name, not showing the cached pane" }
+      return
+    }
+    val pane = CachedFrontendProjectViewPane(paneId, presentableName)
+    if (!pane.restoreStateFrom(paneElement)) {
+      LOG.debug { "The pane $paneId has no cached presentation, not showing the cached pane" }
+      return
+    }
+    val content = ContentFactory.getInstance().createContent(pane.component, presentableName, false)
+    content.setPreferredFocusedComponent { pane.componentToFocus }
+    content.putUserData(CACHED_PANE_KEY, pane)
+    toolWindow.contentManager.addContent(content)
+    ProjectViewInitNotifier.getInstance(project).initCachedNodesLoaded()
+    LOG.info("Added the cached pane $paneId")
+  }
+
+  private fun getStartupPaneId(capabilities: ProjectFrameCapabilitiesService): ProjectViewPaneId? {
+    return capabilities.getUiPolicy(project)?.projectPaneToActivateId?.let { projectViewPaneId(it) }
   }
 
   override suspend fun manageToolWindow(toolWindow: ToolWindow) {
@@ -152,9 +220,7 @@ internal class ProjectViewToolWindowServiceImpl(
         paneContentManager.manageContent()
       }
       val aggregator = FrontendProjectViewPaneAggregator.getInstance(project)
-      val startupPaneId = serviceAsync<ProjectFrameCapabilitiesService>().getUiPolicy(project)
-        ?.projectPaneToActivateId
-        ?.let { projectViewPaneId(it) }
+      val startupPaneId = getStartupPaneId(serviceAsync<ProjectFrameCapabilitiesService>())
       // The frame UI policy wins over the saved selection, as in the monolith.
       // The saved selection is read once, after the state is loaded: the content manager selects the first added content,
       // and that selection overwrites the saved value (IJPL-256315).
@@ -354,7 +420,7 @@ internal class ProjectViewToolWindowServiceImpl(
     // Not sure if this thing can be invoked under a modal state, but it better run fast regardless.
     withContext(Dispatchers.UI + ModalityState.any().asContextElement()) {
       // Only save the current pane, because other panes either:
-      // 1. already saved their state when they were hidden the last time or,
+      // 1. already saved their state when they were unselected the last time or,
       // 2. even worse, may have never been loaded, which means they have empty states,
       // and we don't want to overwrite whatever was loaded from the persistent storage.
       val currentPane = currentPaneFlow.value
@@ -384,7 +450,8 @@ internal class ProjectViewToolWindowServiceImpl(
     val isLightToSmartMigration =
       paneState?.paneKind == ProjectViewPaneKind.LIGHT &&
       pane.descriptorImpl.kind == ProjectViewPaneKind.BACKEND
-    pane.restoreStateFrom(paneState?.element, RestorePaneStateOptionsImpl(restoreSelection = isLightToSmartMigration))
+    val restoreSelection = isLightToSmartMigration || paneState?.restoreSelection == true
+    pane.safeRestoreStateFrom(paneState?.element, RestorePaneStateOptionsImpl(restoreSelection = restoreSelection))
     LOG.debug { "Applied the loaded state for ${pane.id}" }
   }
   
@@ -394,15 +461,29 @@ internal class ProjectViewToolWindowServiceImpl(
       LOG.debug { "Not saving the state of ${pane.id} because it's not active" }
       return
     }
-    val paneElement = Element("pane")
-    paneElement.setAttribute("pane", pane.id.idString)
-    if (pane.saveStateTo(paneElement)) {
+    val paneElement = createPaneElement(pane.id, pane.descriptorImpl.presentableName)
+    if (pane.safeSaveStateTo(paneElement)) {
       persistentState.putPaneState(pane.id, PaneState(paneElement, pane.descriptorImpl.kind))
       LOG.debug { "Saved the last state for ${pane.id}" }
     }
     else {
       LOG.debug { "Not saved the effectively empty state for ${pane.id}" }
     }
+  }
+
+  @RequiresEdt
+  private fun saveCachedPaneState(pane: CachedFrontendProjectViewPane) {
+    val paneElement = createPaneElement(pane.id, pane.presentableName)
+    pane.saveStateTo(paneElement)
+    persistentState.putPaneState(pane.id, PaneState(paneElement, paneKind = null, restoreSelection = true))
+    LOG.debug { "Saved the state of the cached pane ${pane.id}" }
+  }
+
+  private fun createPaneElement(paneId: ProjectViewPaneId, presentableName: @NlsSafe String): Element {
+    val paneElement = Element("pane")
+    paneElement.setAttribute("pane", paneId.idString)
+    paneElement.setAttribute(PRESENTABLE_NAME_ATTRIBUTE, presentableName)
+    return paneElement
   }
 
   private inner class PaneManager(
@@ -414,7 +495,7 @@ internal class ProjectViewToolWindowServiceImpl(
       get() = pane.descriptorImpl
     
     private val initialized = CompletableDeferred<Unit>()
-    
+
     suspend fun managePane() {
       coroutineScope {
         val mainScope = this
@@ -426,15 +507,6 @@ internal class ProjectViewToolWindowServiceImpl(
         }
         LOG.debug { "The saved state has been loaded for ${pane.id}" }
         launch(Dispatchers.UI + CoroutineName("Manage TW content for PV pane ${pane.id}")) {
-          pane.component.launchOnShow("Pane ${pane.id} service state saving/restoring") {
-            try {
-              loadPaneState(pane)
-              awaitCancellation()
-            }
-            finally {
-              savePaneStateIfActive(pane)
-            }
-          }
           val selectedPaneId = initialSelection.value ?: defaultSelection
           val mustSelectThisPane = selectedPaneId == pane.id
           // The wait lets the selected pane be added first, so the content manager selects it.
@@ -589,18 +661,22 @@ internal class ProjectViewToolWindowServiceImpl(
     val descriptor: ProjectViewPaneDescriptorImpl
       get() = pane.descriptorImpl
   }
-  
+
   private inner class PaneContentManager @RequiresEdt constructor(toolWindow: ToolWindow) {
     private val contentManager = toolWindow.contentManager
     // Written only in createAndAddContent on the EDT, read from any thread.
     @Volatile private var firstContentAddedAt: TimeMark? = null
-    
+
+    init {
+      // Added at once, so the listener can't miss the selection of the first pane.
+      contentManager.addContentManagerListener(paneSelectionListener)
+    }
+
     suspend fun manageContent() {
       coroutineScope {
-        launch(Dispatchers.UI + CoroutineName("Current pane listener")) {
-          contentManager.addContentManagerListener(currentPaneListener)
+        launch(Dispatchers.UI + CoroutineName("Pane selection listener")) {
           awaitCancellationAndInvoke {
-            contentManager.removeContentManagerListener(currentPaneListener)
+            contentManager.removeContentManagerListener(paneSelectionListener)
           }
         }
         launch(Dispatchers.UI + CoroutineName("Content ordering")) {
@@ -636,6 +712,11 @@ internal class ProjectViewToolWindowServiceImpl(
       newContent.setPreferredFocusedComponent { pane.componentToFocus }
       newContent.putUserData(PANE_KEY, pane)
       val index = findSuitableIndex(pane) ?: return null
+      if (firstContentAddedAt == null) {
+        // Before the first real pane, the tool window can have only the cached pane.
+        LOG.debug { "Removing ${contentManager.contentCount} contents before adding the first real pane ${pane.id}" }
+        contentManager.removeAllContents(true)
+      }
       contentManager.addContent(newContent, index)
       if (firstContentAddedAt == null) {
         firstContentAddedAt = TimeSource.Monotonic.markNow()
@@ -805,13 +886,56 @@ private class ProjectViewToolWindowServiceState {
 private data class PaneState(
   val element: Element,
   val paneKind: ProjectViewPaneKind?,
+  /**
+   * `true` if the next restore must also restore the selection.
+   *
+   * The cached pane sets it, because its state comes from a temporary pane, as with the light to smart switch.
+   * It is not persisted, as it's only used in-process.
+   */
+  val restoreSelection: Boolean = false,
 )
 
 private fun defaultSelectedPaneId(): ProjectViewPaneId =
   projectViewPaneId(ProjectViewPane.ID)
 
+/**
+ * The saved pane name, which the cached pane shows before the descriptors arrive.
+ */
+private const val PRESENTABLE_NAME_ATTRIBUTE = "presentableName"
+
 private val FrontendProjectViewPane.descriptorImpl: ProjectViewPaneDescriptorImpl
   get() = descriptor as ProjectViewPaneDescriptorImpl
+
+/**
+ * Calls [FrontendProjectViewPane.restoreStateFrom] and logs an exception instead of throwing it.
+ */
+@RequiresEdt
+private fun FrontendProjectViewPane.safeRestoreStateFrom(element: Element?, options: RestorePaneStateOptions) {
+  try {
+    restoreStateFrom(element, options)
+  }
+  catch (e: Throwable) {
+    rethrowControlFlowException(e)
+    LOG.error("Failed to restore the state of the pane $id", e)
+  }
+}
+
+/**
+ * Calls [FrontendProjectViewPane.saveStateTo] and logs an exception instead of throwing it.
+ *
+ * @return `false` if [FrontendProjectViewPane.saveStateTo] throws, so the partly written state is not persisted
+ */
+@RequiresEdt
+private fun FrontendProjectViewPane.safeSaveStateTo(element: Element): Boolean {
+  return try {
+    saveStateTo(element)
+  }
+  catch (e: Throwable) {
+    rethrowControlFlowException(e)
+    LOG.error("Failed to save the state of the pane $id", e)
+    false
+  }
+}
 
 /**
  * How long the tool window waits for the pane to select.
@@ -822,4 +946,5 @@ private val FrontendProjectViewPane.descriptorImpl: ProjectViewPaneDescriptorImp
 private val PANE_SELECTION_TIMEOUT = 5.seconds
 
 private val PANE_KEY = Key.create<FrontendProjectViewPane>("FrontendProjectViewPane")
+private val CACHED_PANE_KEY = Key.create<CachedFrontendProjectViewPane>("CachedFrontendProjectViewPane")
 private val LOG = logger<ProjectViewToolWindowServiceImpl>()

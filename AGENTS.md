@@ -23,21 +23,28 @@ Write every user-visible artifact in [ASD-STE100 Simplified Technical English](h
 
 Each kind of text has one home. Rationale and evidence for a change go in the commit message, not in a code comment. Document a declaration in KDoc on it, not in a `README.md`.
 
-## Workspace Isolation
-
-This repository is too large for an ad hoc Git worktree or clone. Create one only on an explicit user request, and never install a workspace manager. Isolation comes from the `branch-deck` skill: follow it before the first edit. Without it, work in the current checkout.
-
 ## Module-specific rules
 
-Before you edit or review a file, read every `AGENTS.md` between its directory and the repository root. They override the general guidance here. The Eel and IJent modules (`platform/eel*/`, `platform/ijent/`) share `platform/eel/AGENTS.md`.
+Before you plan, edit or review a change of a file, read every `AGENTS.md` between its directory and the repository root. They override the general guidance here. The Eel and IJent modules (`platform/eel*/`, `platform/ijent/`) share `platform/eel/AGENTS.md`.
 
 ## Mandatory Rules
+
+### Before the First Edit
+
+This repository is too large for an ad hoc Git worktree or clone. Create one only on an explicit user request. This rule applies also without Branch Deck.
+
+Branch Deck is optional. First check for the `branch-deck` skill: the skill list of the agent names it, or `~/.agents/skills/branch-deck/SKILL.md` exists.
+
+- With the skill, follow it before the first edit, build or commit. This applies to every agent. Run `bd workspace -C <repo>` and follow its output.
+- When `lease.on` is true, run `bd lease get` and edit, build and commit only in the lease `path`.
+- A plan does not replace this check. With the skill, each plan that edits code starts with a workspace stage.
+- Without the skill, work in the current checkout. The plan then has no workspace stage.
 
 ### After Code Changes
 
 - **Run the affected tests:** `./tools/bt.cmd --module <module> --filter <FQN>`, or `node --test <file>` for a `*.test.mjs` file. An FQN is required. Always name the test module. When bt refuses the module, run the `tests.cmd` command that it prints. Neither runner needs a separate `bazel build` step. A module rule can override the runner. Skip this when the plugin has no tests. See [TESTING](./.agents/skills/testing/SKILL.md).
-- **Bazel compilation without tests:** to verify compilation only, run `bazel build <target>` for the affected modules. Skip this when you changed only `.js`, `.mjs`, `.md`, `.txt`, or `.json` files.
-- After you change a Bazel or Starlark source (`BUILD`, `BUILD.bazel`, `MODULE.bazel`, `WORKSPACE`, `WORKSPACE.bazel`, or `*.bzl`), run `bazel run //:format.check`. If it reports a diff, run `bazel run //:format`, inspect the changes, and run the check again.
+- **Bazel compilation without tests:** run `./bazel.cmd build <target>` for the affected modules. Skip this when you changed only `.js`, `.mjs`, `.md`, `.txt`, or `.json` files.
+- After you change a Bazel or Starlark source (`BUILD`, `BUILD.bazel`, `MODULE.bazel`, `WORKSPACE`, `WORKSPACE.bazel`, or `*.bzl`), run `./bazel.cmd run //:format.check`. If it reports a diff, run `./bazel.cmd run //:format`, inspect the changes, and run the check again.
 - After you change an `*.iml`, a `BUILD.bazel`, or a `.idea/` file, run `./build/jpsModelToBazelCommunityOnly.cmd`.
 
 ### After Writing Code
@@ -71,7 +78,7 @@ Before you improvise a procedure, look for a skill that covers it in the index:
 
 - Skill index: [`.agents/skills/INDEX.md`](./.agents/skills/INDEX.md)
 
-Before a plan that adds a responsibility, run the owner check of the `duplicate-and-dead-code` skill.
+Before a plan that adds a responsibility, run the owner check of the `duplicate-and-dead-code` skill. Run it before you write the plan, not as a step of the plan.
 
 ## Individual Preferences
 

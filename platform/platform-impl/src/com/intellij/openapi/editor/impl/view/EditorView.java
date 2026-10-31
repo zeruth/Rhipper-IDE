@@ -19,6 +19,7 @@ import com.intellij.openapi.editor.colors.EditorFontType;
 import com.intellij.openapi.editor.event.VisibleAreaEvent;
 import com.intellij.openapi.editor.event.VisibleAreaListener;
 import com.intellij.openapi.editor.ex.DocumentEx;
+import com.intellij.openapi.editor.ex.DocumentText;
 import com.intellij.openapi.editor.ex.EditorModel;
 import com.intellij.openapi.editor.ex.InlayModelEx;
 import com.intellij.openapi.editor.ex.MarkupModelEx;
@@ -92,7 +93,6 @@ public final class EditorView implements TextDrawingCallback, Disposable, Dumpab
   private final EditorSizeManager mySizeManager;
   private final TextLayoutCache myTextLayoutCache;
   private final LogicalPositionCache myLogicalPositionCache;
-  private final CharWidthCache myCharWidthCache;
   private final TabFragment myTabFragment;
   private final SelectionVisualModel mySelectionVisualModel;
 
@@ -113,7 +113,6 @@ public final class EditorView implements TextDrawingCallback, Disposable, Dumpab
     myMapper = new EditorCoordinateMapper(this, myLogicalPositionCache);
     mySizeManager = new EditorSizeManager(this);
     myTextLayoutCache = new TextLayoutCache(this, new ComponentVisibilityTracker(myEditor.getContentComponent()));
-    myCharWidthCache = new CharWidthCache(this);
     myTabFragment = new TabFragment(this);
     mySelectionVisualModel = new SelectionVisualModel(myEditor);
 
@@ -279,7 +278,8 @@ public final class EditorView implements TextDrawingCallback, Disposable, Dumpab
 
   @RequiresEdt
   public boolean isRtlLocation(@NotNull VisualPosition visualPosition) {
-    if (myDocument.getTextLength() == 0) {
+    DocumentText document = myDocument.getDocumentText();
+    if (document.length() == 0) {
       return false;
     }
     LogicalPosition logicalPosition = visualToLogicalPosition(visualPosition);
@@ -301,9 +301,9 @@ public final class EditorView implements TextDrawingCallback, Disposable, Dumpab
         return false;
       }
     } 
-    int line = myDocument.getLineNumber(offset);
-    LineLayout layout = myTextLayoutCache.getLineLayout(line);
-    return layout.isRtlLocation(offset - myDocument.getLineStartOffset(line), logicalPosition.leansForward);
+    int line = document.lineNumber(offset);
+    LineLayout layout = myTextLayoutCache.getLineLayout(document, line);
+    return layout.isRtlLocation(offset - document.lineStartOffset(line), logicalPosition.leansForward);
   }
 
   @RequiresEdt
@@ -319,13 +319,14 @@ public final class EditorView implements TextDrawingCallback, Disposable, Dumpab
    */
   @RequiresEdt
   public int findNearestDirectionBoundary(int offset, boolean lookForward) {
-    int textLength = myDocument.getTextLength();
+    DocumentText document = myDocument.getDocumentText();
+    int textLength = document.length();
     if (textLength == 0 || offset < 0 || offset > textLength) {
       return -1;
     }
-    int line = myDocument.getLineNumber(offset);
-    LineLayout layout = myTextLayoutCache.getLineLayout(line);
-    int lineStartOffset = myDocument.getLineStartOffset(line);
+    int line = document.lineNumber(offset);
+    LineLayout layout = myTextLayoutCache.getLineLayout(document, line);
+    int lineStartOffset = document.lineStartOffset(line);
     int relativeOffset = layout.findNearestDirectionBoundary(offset - lineStartOffset, lookForward);
     return relativeOffset < 0 ? -1 : lineStartOffset + relativeOffset;
   }
@@ -417,6 +418,7 @@ public final class EditorView implements TextDrawingCallback, Disposable, Dumpab
       return snapshot
         .withFontRenderContext(newFontRenderContext)
         .withMetrics(EditorViewMetrics.UNINITIALIZED)
+        .withFontResolver(EditorFontResolver.UNINITIALIZED)
         .withTabSize(newTabSize)
         .withBidiFlags(newBidiFlags)
         .withRtlEnabled(myEditor.getSettings().isRtlEnabled())
@@ -425,7 +427,6 @@ public final class EditorView implements TextDrawingCallback, Disposable, Dumpab
     myLogicalPositionCache.reset(false, getTabSize());
     myTextLayoutCache.resetToDocumentSize(false);
     invalidateFoldRegionLayouts();
-    myCharWidthCache.clear();
     mySizeManager.reset();
     mySelectionVisualModel.reset();
   }
@@ -634,7 +635,7 @@ public final class EditorView implements TextDrawingCallback, Disposable, Dumpab
       return grid.codePointWidth(codePoint);
     }
     else {
-      return myCharWidthCache.getCodePointWidth(codePoint, fontStyle);
+      return getFontResolver().editorFonts().codePointWidth(codePoint, fontStyle);
     }
   }
 
@@ -643,7 +644,34 @@ public final class EditorView implements TextDrawingCallback, Disposable, Dumpab
    * The bound does not apply to a character grid.
    */
   float getMaxPrintableAsciiWidth() {
-    return myCharWidthCache.getMaxPrintableAsciiWidth();
+    return getFontResolver().editorFonts().maxPrintableAsciiWidth();
+  }
+
+  /**
+   * Returns the font resolver of the current font settings, and creates it on the first use.
+   */
+  @NotNull EditorFontResolver getFontResolver() {
+    while (true) {
+      EditorViewSnapshot snapshot = mySnapshot;
+      EditorFontResolver resolver = snapshot.fontResolver();
+      if (resolver != EditorFontResolver.UNINITIALIZED) {
+        return resolver;
+      }
+      EditorFontResolver newResolver = createFontResolver(snapshot);
+      if (SNAPSHOT_UPDATER.compareAndSet(this, snapshot, snapshot.withFontResolver(newResolver))) {
+        return newResolver;
+      }
+    }
+  }
+
+  /**
+   * Creates the font resolver of the current font settings, with the render context of {@code snapshot}.
+   * Like {@link #createNewMetrics}, it can run on any thread.
+   */
+  private @NotNull EditorFontResolver createFontResolver(@NotNull EditorViewSnapshot snapshot) {
+    EditorColorsScheme colorsScheme = myEditor.getColorsScheme();
+    Font specialCharacterFont = myEditor.getSettings().isShowingSpecialChars() ? colorsScheme.getFont(EditorFontType.PLAIN) : null;
+    return new EditorFontResolver(colorsScheme.getFontPreferences(), snapshot.fontRenderContext(), specialCharacterFont);
   }
 
   Insets getInsets() {
@@ -663,10 +691,6 @@ public final class EditorView implements TextDrawingCallback, Disposable, Dumpab
         invalidateFoldRegionLayout(region);
       }
     });
-  }
-
-  @NotNull FontRenderContext getFontRenderContext() {
-    return mySnapshot.fontRenderContext();
   }
 
   public float getPlainSpaceWidth() {
@@ -777,8 +801,9 @@ public final class EditorView implements TextDrawingCallback, Disposable, Dumpab
    * Returns the prefix layout, and computes it when the snapshot holds {@link #NOT_INITIALIZED_PREFIX}.
    */
   private @Nullable LineLayout getOrComputePrefixLayout() {
-    getTabSize(); // force tabSize and metrics calculations to avoid nested CAS loop in createForStandaloneText
+    getTabSize(); // force tabSize, metrics and font resolver calculations to avoid nested CAS loop in createForStandaloneText
     getSnapshotWithMetrics();
+    getFontResolver();
     while (true) {
       EditorViewSnapshot snapshot = mySnapshot;
       LineLayout layout = snapshot.prefixLayout();
@@ -818,10 +843,9 @@ public final class EditorView implements TextDrawingCallback, Disposable, Dumpab
    * <p>
    * Runs on whatever thread first finds the metrics uninitialized, and a background reader can be that thread.
    * The AWT side tolerates that: the font render context comes from {@code snapshot}, no component is touched,
-   * and the JDK font APIs measure concurrently. The editor state read here does not. The colors scheme is held in
-   * a plain field, and {@code EditorColorSchemeDelegate} publishes its font map by assigning it before filling it,
-   * so a reader racing a font change can miss the editor's own font and measure the global scheme's instead. That
-   * costs wrong metrics, not a corrupt state, and they last only until the reinit that changed the font resets them.
+   * and the JDK font APIs measure concurrently. A reader racing a change of the colors scheme can measure the old
+   * scheme. The fonts of one scheme are consistent, because {@code EditorColorSchemeDelegate} publishes them in one
+   * snapshot. Wrong metrics cost no corrupt state, and they last only until the reinit after the change resets them.
    */
   private @NotNull EditorViewMetrics createNewMetrics(@NotNull EditorViewSnapshot snapshot) {
     FontRenderContext fontRenderContext = snapshot.fontRenderContext();
@@ -942,7 +966,7 @@ public final class EditorView implements TextDrawingCallback, Disposable, Dumpab
     invalidateAnimationCaches(null);
     myTextLayoutCache.resetToDocumentSize(false);
     invalidateFoldRegionLayouts();
-    myCharWidthCache.clear();
+    getSoftWrapModel().onTextWidthsChanged();
     getFoldingModel().updateCachedOffsets();
     // TODO IJPL-255731: also invalidate the cached visual line widths of mySizeManager.
     //  They keep the values that the old context measured. Use invalidateRange, never reset,
@@ -964,6 +988,7 @@ public final class EditorView implements TextDrawingCallback, Disposable, Dumpab
       EditorViewSnapshot newSnapshot = snapshot
         .withFontRenderContext(newContext)
         .withMetrics(EditorViewMetrics.UNINITIALIZED)
+        .withFontResolver(EditorFontResolver.UNINITIALIZED)
         .withPrefixLayout(NOT_INITIALIZED_PREFIX);
       if (SNAPSHOT_UPDATER.compareAndSet(this, snapshot, newSnapshot)) {
         return true;

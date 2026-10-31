@@ -4,7 +4,7 @@
     <facet type="kotlin-language" name="Kotlin">
       <configuration version="5" platform="JVM 25" allPlatforms="JVM [25]" useProjectSettings="false">
         <compilerSettings>
-          <option name="additionalArguments" value="-Xjvm-default=all -opt-in=kotlin.time.ExperimentalTime -XXLanguage:+AllowEagerSupertypeAccessibilityChecks -progressive" />
+          <option name="additionalArguments" value="-Xjvm-default=all -opt-in=kotlin.time.ExperimentalTime -XXLanguage:+AllowEagerSupertypeAccessibilityChecks -XXLanguage:-WrapContinuationForTailCallFunctions -progressive" />
         </compilerSettings>
         <compilerArguments>
           <stringArguments>
@@ -18,6 +18,9 @@
   </component>
   <component name="NewModuleRootManager" inherit-compiler-output="true">
     <exclude-output />
+    <content url="file://$MODULE_DIR$/testData">
+      <sourceFolder url="file://$MODULE_DIR$/testData" type="java-test-resource" />
+    </content>
     <content url="file://$MODULE_DIR$/testSrc">
       <sourceFolder url="file://$MODULE_DIR$/testSrc" isTestSource="true" />
     </content>

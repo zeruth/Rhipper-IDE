@@ -7,13 +7,8 @@
       "productionJars": [
         "out/bazel-out/jvm-fastbuild/bin/plugin/plugin.jar"
       ],
-      "testTargets": [
-        "@community//plugin:plugin_test_lib.jar"
-      ],
-      "testJars": [
-        "out/bazel-out/jvm-fastbuild/bin/plugin/plugin_test_lib.jar"
-      ],
-      "exports": [],
+      "testTargets": [],
+      "testJars": [],
       "moduleLibraries": {}
     },
     "intellij.libraries.example": {
@@ -23,13 +18,8 @@
       "productionJars": [
         "out/bazel-out/jvm-fastbuild/bin/content/libraries-example.jar"
       ],
-      "testTargets": [
-        "@community//content:libraries-example_test_lib.jar"
-      ],
-      "testJars": [
-        "out/bazel-out/jvm-fastbuild/bin/content/libraries-example_test_lib.jar"
-      ],
-      "exports": [],
+      "testTargets": [],
+      "testJars": [],
       "moduleLibraries": {
         "first": {
           "target": "//libs:libraries-example-first",
@@ -48,16 +38,6 @@
           ],
           "jarTargets": [
             "//libs:second.jar"
-          ],
-          "sourceJars": []
-        },
-        "testonly": {
-          "target": "//libs:libraries-example-testonly",
-          "jars": [
-            "execroot/_main/libs/testonly.jar"
-          ],
-          "jarTargets": [
-            "//libs:testonly.jar"
           ],
           "sourceJars": []
         },
@@ -80,25 +60,9 @@
       "productionJars": [
         "out/bazel-out/jvm-fastbuild/bin/refused/refused.jar"
       ],
-      "testTargets": [
-        "@community//refused:refused_test_lib.jar"
-      ],
-      "testJars": [
-        "out/bazel-out/jvm-fastbuild/bin/refused/refused_test_lib.jar"
-      ],
-      "exports": [],
-      "moduleLibraries": {
-        "testonly": {
-          "target": "//libs:libraries-refused-testonly",
-          "jars": [
-            "execroot/_main/libs/testonly.jar"
-          ],
-          "jarTargets": [
-            "//libs:testonly.jar"
-          ],
-          "sourceJars": []
-        }
-      }
+      "testTargets": [],
+      "testJars": [],
+      "moduleLibraries": {}
     }
   },
   "imlTargets": [
@@ -110,7 +74,7 @@
   "pluginDistributionTargets": {
     "intellij.example.plugin": {
       "target": "@community//plugin:plugin_plugin",
-      "distributionDirectory": "out/bazel-out/jvm-fastbuild/bin/plugin/example-plugin"
+      "distributionDirectory": "out/bazel-out/jvm-fastbuild/bin/plugin/example"
     }
   }
 }

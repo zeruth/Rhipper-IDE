@@ -568,6 +568,23 @@ public final class SoftWrapModelImpl extends InlayModel.SimpleAdapter
     myRecalculationManager.onFontStyleChanged(startOffset, endOffset);
   }
 
+  /**
+   * Called when the widths of the text can change in the whole document.
+   * The editor highlighter, the colors scheme or the font render context changed.
+   * All soft wraps are recalculated before the next mapping.
+   */
+  @ApiStatus.Internal
+  public void onTextWidthsChanged() {
+    myRecalculationManager.onTextWidthsChanged();
+  }
+
+  /**
+   * Called when the editor highlighter repaints the text up to {@code endOffset} during a document change.
+   */
+  void onHighlighterRepaint(int endOffset) {
+    myRecalculationManager.onHighlighterRepaint(endOffset);
+  }
+
   void recalculate(@NotNull String reason) {
     myRecalculationManager.recalculate(reason);
   }

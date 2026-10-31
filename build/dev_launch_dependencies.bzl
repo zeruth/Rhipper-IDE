@@ -1,313 +1,21 @@
-"""The archives a dev-mode IDE assembly downloads at launch time, as Bazel inputs.
+"""The repository sets that a dev-mode assembly and IDE Starter read from runfiles, of the archives community owns.
 
-The versions are not declared here. They are read out of the files that already own them, so a
-dependency updater bumping a version cannot leave this set behind. `ijentVersion` alone moved 531 times
-in six months; nothing hand-maintained can track that.
+A set maps each `HOST_PLATFORMS` entry to the download repositories of that platform. A reference of a product and the
+legacy dev test read a set with `--preloaded-only`, so an undeclared URL fails them. A split distribution reads no
+set: each component declares the archive file that it places as an input.
 
-The URL shapes, unlike the versions, are stable. Each one mirrors the build-side function named beside
-it, and a divergence surfaces at launch as an undeclared URL.
-
-This is a module extension rather than a plain repository rule because watching is per file: one
-repository reading `build/dependencies/dependencies.properties` would be invalidated by every commit to
-it, and refetching means re-downloading hundreds of megabytes. The extension reads the coarse files and
-hands each group of artifacts a repository whose attributes carry only its own version, so a bump
-refetches exactly what it changed.
-
-A repository is per platform only where the artifact is: the JBR, JCEF, pyrefly, the Chatter binary and the
-Toolbox daemon are, while IJent, libwebp, libghostty-vt, the restart helper and the bundled Maven
-distribution ship every platform in one archive and are fetched once for all six.
-
-This file owns the community half - the machinery, and the groups whose version lives under
-`community/`. The ultimate half is `//build:dev_launch_dependencies.bzl`, and the two compose through
-[merge_repo_sets].
+This file declares no repository. The extension of each owner declares its archives, beside the owner. The ultimate
+sets are in `//build:dev_launch_dependencies.bzl`, and the two compose through [merge_repo_sets].
 """
 
-load("@bazel_tools//tools/build_defs/repo:cache.bzl", "DEFAULT_CANONICAL_ID_ENV", "get_default_canonical_id")
-load("@bazel_tools//tools/build_defs/repo:utils.bzl", "get_auth")
-load(":test_deps_extension.bzl", "all_downloads_pinned", "write_downloads_repo")
-
-# BuildDependenciesConstants
-MAVEN_CENTRAL_URL = "https://cache-redirector.jetbrains.com/repo.maven.apache.org/maven2"
-INTELLIJ_DEPENDENCIES_URL = "https://cache-redirector.jetbrains.com/intellij-dependencies"
-INTELLIJ_JBR_URL = "https://cache-redirector.jetbrains.com/intellij-jbr"
-
-# Named after the `host_*` config settings in this package, which are the select axis every consumer uses.
-HOST_PLATFORMS = [
-    "darwin_aarch64",
-    "darwin_x64",
-    "linux_aarch64",
-    "linux_x64",
-    "windows_aarch64",
-    "windows_x64",
-]
-
-# OsFamily.jbrArchiveSuffix
-JBR_OS_SUFFIX = {
-    "darwin": "osx",
-    "linux": "linux",
-    "windows": "windows",
-}
-
-_COMMUNITY_DEPENDENCIES = Label("//build:dependencies/dependencies.properties")
-
-MANIFEST_NAME = "preloaded-downloads-v1.tsv"
-
-# The executable list of a `dev_launch_extracted_repo`. See `_executable_files`.
-EXECUTABLE_LIST_NAME = "dev_launch_executables.json"
+load(":download_rules.bzl", "MANIFEST_NAME")
+load(":host_platforms.bzl", "HOST_PLATFORMS")
 
 # BuildDependenciesConstants.PRELOADED_DOWNLOADS_MANIFEST_PROPERTY
 _MANIFEST_PROPERTY = "intellij.build.download.preloaded.manifest"
 
 # BuildDependenciesConstants.PRELOADED_DOWNLOADS_ONLY_PROPERTY
 _ONLY_PROPERTY = "intellij.build.download.preloaded.only"
-
-def platform_parts(platform):
-    """Splits a [HOST_PLATFORMS] entry into its OS and architecture tokens."""
-    if platform not in HOST_PLATFORMS:
-        fail("'%s' is not one of %s" % (platform, HOST_PLATFORMS))
-    os, _, arch = platform.rpartition("_")
-    return struct(os = os, arch = arch)
-
-def read_properties(module_ctx, label):
-    result = {}
-    for line in module_ctx.read(label, watch = "yes").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or line.startswith("!"):
-            continue
-        key, separator, value = line.partition("=")
-        if not separator:
-            continue
-        result[key.strip()] = value.strip()
-    return result
-
-def pinned(properties, label, key):
-    value = properties.get(key)
-    if not value:
-        fail("'%s' is missing from %s" % (key, label))
-    return value
-
-# BuildDependenciesDownloader.getUriForMavenArtifact
-def maven_url(repository, group_id, artifact_id, version, packaging, classifier = None):
-    return "%s/%s/%s/%s/%s-%s%s.%s" % (
-        repository,
-        group_id.replace(".", "/"),
-        artifact_id,
-        version,
-        artifact_id,
-        version,
-        "-" + classifier if classifier else "",
-        packaging,
-    )
-
-def maven_coordinates_urls(repository, coordinates):
-    urls = []
-    for coordinate in coordinates.split(","):
-        parts = coordinate.strip().split(":")
-        if len(parts) != 3:
-            fail("Maven coordinates must have group, artifact, and version: '%s'" % coordinate)
-        urls.append(maven_url(repository, parts[0], parts[1], parts[2], "jar"))
-    return urls
-
-def _runtime_build_parts(runtime_build):
-    major_version, separator, build_number = runtime_build.partition("b")
-    if not separator or not major_version or not build_number:
-        fail("'runtimeBuild' does not match '<update>b<build_number>': '%s'" % runtime_build)
-    return struct(version = major_version, build_number = build_number)
-
-def _jbr_archive_root(prefix, platform, runtime_build):
-    parts = platform_parts(platform)
-    build = _runtime_build_parts(runtime_build)
-    return "%s%s-%s-%s-b%s" % (prefix, build.version, JBR_OS_SUFFIX[parts.os], parts.arch, build.build_number)
-
-# JBRResolver.jbrArchiveFileName
-def jbr_url(platform, runtime_build):
-    return "%s/%s.tar.gz" % (INTELLIJ_JBR_URL, _jbr_archive_root("jbrsdk_jcef-", platform, runtime_build))
-
-def jbr_runtime_archive_root(platform, runtime_build):
-    """The one root directory of the [jbr_runtime_url] archive, such as `jbr-25.0.4.1-osx-aarch64-b635.70`."""
-    return _jbr_archive_root("jbr-", platform, runtime_build)
-
-# BundledRuntimeImpl.archiveName
-def jbr_runtime_url(platform, runtime_build):
-    """The vanilla runtime that a production distribution bundles as `jbr`, for one [HOST_PLATFORMS] entry."""
-    return "%s/%s.tar.gz" % (INTELLIJ_JBR_URL, jbr_runtime_archive_root(platform, runtime_build))
-
-# CommunityRepositoryModules.jcefDownloadUrl
-def jcef_url(platform, jcef_build):
-    parts = platform_parts(platform)
-    return "%s/jcef-%s-%s-%s.tar.gz" % (INTELLIJ_JBR_URL, JBR_OS_SUFFIX[parts.os], parts.arch, jcef_build)
-
-# TerminalLibGhosttyVtDownloader.downloadUrl
-def lib_ghostty_vt_url(version):
-    return "https://cache-redirector.jetbrains.com/files/p/ij/intellij-build-dependencies/libghostty-vt/libghostty-vt-%s.zip.zst" % version
-
-# CommunityRepositoryModules.jSerialCommDownloadUrl - the content hash is the version. Keep in lockstep with
-# `JSERIALCOMM_NATIVE_HASH` in CommunityRepositoryModules.kt.
-_JSERIALCOMM_NATIVE_HASH = "9a7813435b79aa2e23c7f2a78f1b66b48c0504c4"
-
-def jserialcomm_url():
-    return "https://cache-redirector.jetbrains.com/files/p/ij/intellij-build-dependencies/jSerialComm/%s/jSerialComm.zip" % _JSERIALCOMM_NATIVE_HASH
-
-# OsFamily.osName
-_PYREFLY_OS_NAMES = {
-    "darwin": "macOS",
-    "linux": "Linux",
-    "windows": "Windows",
-}
-
-# JvmArchitecture.archName
-_PYREFLY_ARCH_NAMES = {
-    "aarch64": "AArch64",
-    "x64": "X86_64",
-}
-
-def pyrefly_platform_directory(platform):
-    """`pyreflyPlatformDirName`: the directory of the binary in the archive and in the plugin, such as `macOS-AArch64`."""
-    parts = platform_parts(platform)
-    return "%s-%s" % (_PYREFLY_OS_NAMES[parts.os], _PYREFLY_ARCH_NAMES[parts.arch])
-
-# downloadPyrefly - `platform` is a [HOST_PLATFORMS] entry, or `None` for the license report archive
-def pyrefly_url(platform, version):
-    artifact = "pyrefly-" + (pyrefly_platform_directory(platform).lower() if platform else "license")
-    return maven_url(INTELLIJ_DEPENDENCIES_URL, "org.jetbrains.intellij.deps", artifact, version, "tar.gz")
-
-def _file_name(url):
-    name = url.rpartition("/")[2]
-    if not name or "?" in name or "#" in name:
-        fail("cannot derive a repository file name from '%s'" % url)
-    return name
-
-def _repo_impl(repository_ctx):
-    urls = repository_ctx.attr.urls
-    sha256s = repository_ctx.attr.sha256s
-    if sha256s and len(sha256s) != len(urls):
-        fail("dev_launch_deps got %d URLs but %d checksums" % (len(urls), len(sha256s)))
-    files = [
-        struct(name = _file_name(url), url = url, sha256 = sha256s[index] if sha256s else "")
-        for index, url in enumerate(urls)
-    ]
-    write_downloads_repo(repository_ctx, files)
-
-    # Reproducible even where the checksum was not known up front: every URL here carries its own
-    # version, so the same URL is the same artifact, and the repo contents cache may share it.
-    # The one exception is `dev_launch_jetbrains_public_keys`, whose URL carries no version.
-    return repository_ctx.repo_metadata(reproducible = all_downloads_pinned(files))
-
-dev_launch_deps_repo = repository_rule(
-    implementation = _repo_impl,
-    environ = [DEFAULT_CANONICAL_ID_ENV],
-    attrs = {
-        # optional, and only where the checkout already owns a trustworthy hash - see write_downloads_repo
-        "sha256s": attr.string_list(),
-        "urls": attr.string_list(mandatory = True),
-    },
-)
-
-def _executable_files(repository_ctx):
-    """The sorted paths of the extracted files with an executable mode bit, or `None` on a Windows host.
-
-    Only the fetch sees the modes of the archive. Bazel can restore the repository from the remote repo contents cache,
-    and then it writes each file that an action reads with the mode `0555`. The list is part of the repository
-    contents, so it keeps the modes of the archive. A Windows file system has no executable bit, so the list is unknown
-    there. `-L` follows a link, as the collector does.
-    """
-    if repository_ctx.os.name.startswith("windows"):
-        return None
-    result = repository_ctx.execute(["find", "-L", ".", "-type", "f", "(", "-perm", "-100", "-o", "-perm", "-010", "-o", "-perm", "-001", ")"])
-    if result.return_code != 0:
-        fail("cannot list the executable files of %s: %s" % (repository_ctx.attr.url, result.stderr))
-    return sorted([line.removeprefix("./") for line in result.stdout.splitlines() if line])
-
-def _extracted_repo_impl(repository_ctx):
-    urls = [repository_ctx.attr.url]
-    result = repository_ctx.download_and_extract(
-        url = urls,
-        sha256 = repository_ctx.attr.sha256,
-        strip_prefix = repository_ctx.attr.strip_prefix,
-        canonical_id = get_default_canonical_id(repository_ctx, urls),
-        auth = get_auth(repository_ctx, urls),
-    )
-    exported = []
-    executables = None
-    if repository_ctx.attr.executable_list:
-        executables = _executable_files(repository_ctx)
-        repository_ctx.file(EXECUTABLE_LIST_NAME, json.encode({"executables": executables}) + "\n", executable = False)
-        exported.append(EXECUTABLE_LIST_NAME)
-    repository_ctx.file(
-        "BUILD",
-        """
-package(default_visibility = ["//visibility:public"])
-files = glob(["**"], exclude = %s, allow_empty = False)
-exports_files(files + %s)
-filegroup(
-    name = "files",
-    srcs = files,
-)
-""" % (repr(["BUILD", "BUILD.bazel", "REPO.bazel"] + exported + repository_ctx.attr.excludes), repr(exported)),
-    )
-
-    # A repository with an unknown executable list stays out of the repo contents cache, so a Windows fetch cannot
-    # hand it to a macOS or Linux host. A repository without a list stays reproducible on every host.
-    pinned = bool(repository_ctx.attr.sha256) or bool(result.sha256)
-    known_list = not repository_ctx.attr.executable_list or executables != None
-    return repository_ctx.repo_metadata(reproducible = pinned and known_list)
-
-dev_launch_extracted_repo = repository_rule(
-    doc = """An archive a dev assembly needs *unpacked*, extracted once by Bazel instead of by the build.
-
-    [dev_launch_deps_repo] takes the network out of an assembly: the archive arrives as a declared input and the
-    downloader reads it from there. Extraction stayed behind, in `<communityRoot>/build/download` - a cache in the
-    checkout, which a build reading a shared read-only project tree cannot write, and which no action declares. So an
-    archive whose *contents* the assembly reads is extracted here, the same way `bun` is (see the ultimate MODULE.bazel),
-    and the consumer is handed files rather than a directory it has to populate. The `excludes` globs drop the junk
-    entries an archive carries, such as `.DS_Store`.
-
-    With `executable_list`, the repository also exports its executable list, `dev_launch_executables.json`, apart from
-    `files`. The list names each file that the archive gives an executable mode bit, as `{"executables": [<path>, ...]}`.
-    On a Windows host the value is `null`, and the repository is not reproducible.
-    """,
-    implementation = _extracted_repo_impl,
-    environ = [DEFAULT_CANONICAL_ID_ENV],
-    attrs = {
-        # globs of the extracted files that the `files` filegroup leaves out, beside the BUILD files and the `REPO.bazel`
-        # boundary file that Bazel writes into the repository
-        "excludes": attr.string_list(),
-        # writes and exports `dev_launch_executables.json`. Only a repository whose list the collector reads sets it,
-        # because a fetch on a Windows host then keeps the repository out of the repo contents cache.
-        "executable_list": attr.bool(default = False),
-        # optional, exactly as in dev_launch_deps_repo: these URLs carry their version, so the same URL is the same
-        # artifact and an unpinned fetch costs a re-download only when the version moves
-        "sha256": attr.string(),
-        "strip_prefix": attr.string(),
-        "url": attr.string(mandatory = True),
-    },
-)
-
-def text_repo_files(file_name, content):
-    """The files of a [dev_launch_text_repo], by path: `file_name` with `content`, and a BUILD that exports it."""
-    return {
-        "BUILD": 'package(default_visibility = ["//visibility:public"])\n\nexports_files(["%s"])\n' % file_name,
-        file_name: content,
-    }
-
-def _text_repo_impl(repository_ctx):
-    for path, content in text_repo_files(repository_ctx.attr.file_name, repository_ctx.attr.content).items():
-        repository_ctx.file(path, content, executable = False)
-    return repository_ctx.repo_metadata(reproducible = True)
-
-dev_launch_text_repo = repository_rule(
-    doc = """One file that holds a pinned value as text, byte for byte, such as a version a plugin ships.
-
-    Not a download: it joins no dev-launch set and has no preloaded-downloads manifest. A plugin component reads it as a
-    declared input, so the dev layout of the plugin copies a file instead of running the production generator. The
-    extension passes the value as `content`, so a bump of it refetches this repository and no other.
-    """,
-    implementation = _text_repo_impl,
-    attrs = {
-        "content": attr.string(mandatory = True),
-        "file_name": attr.string(mandatory = True),
-    },
-)
 
 def merge_repo_sets(*repo_sets):
     """Unions repository sets platform by platform, preserving order and dropping repeats."""
@@ -320,16 +28,27 @@ def merge_repo_sets(*repo_sets):
                     existing.append(entry)
     return merged
 
-def _per_platform_repos(name):
-    return {platform: [_entry("dev_launch_%s_%s" % (platform, name))] for platform in HOST_PLATFORMS}
+def repo_entries(make_label, repositories):
+    """The `files` and the manifest label of each repository in [repositories], for a repository set.
 
-def _shared_repos(names):
-    return {platform: [_entry("dev_launch_" + name) for name in names] for platform in HOST_PLATFORMS}
+    [make_label] is `Label` of the calling `.bzl` file. `Label` reads the repo mapping of the file that calls it, so
+    each half resolves the names of the repositories that its own module imports.
+    """
+    return [
+        struct(files = make_label("@%s//:files" % repository), manifest = make_label("@%s//:%s" % (repository, MANIFEST_NAME)))
+        for repository in repositories
+    ]
 
-def _entry(repo):
-    # Resolved here, in the module that declares the repository: `Label` reads the repo mapping of the
-    # .bzl it is written in, so a set built elsewhere must build its own labels. See the ultimate half.
-    return struct(files = Label("@%s//:files" % repo), manifest = Label("@%s//:%s" % (repo, MANIFEST_NAME)))
+def shared_repo_set(make_label, repositories):
+    """A repository set that holds [repositories] on every [HOST_PLATFORMS] entry."""
+    return {platform: repo_entries(make_label, repositories) for platform in HOST_PLATFORMS}
+
+def per_platform_repo_set(make_label, repository_of):
+    """A repository set that holds the repository `repository_of(platform)` on each [HOST_PLATFORMS] entry."""
+    return {platform: repo_entries(make_label, [repository_of(platform)]) for platform in HOST_PLATFORMS}
+
+def _label(value):
+    return Label(value)
 
 def _restricted(repo_set, platforms):
     if platforms == None:
@@ -417,160 +136,22 @@ def _only_select(platforms, value, default):
 
 # What a dev-mode assembly downloads, of the groups community owns.
 COMMUNITY_DEV_LAUNCH_REPOS = merge_repo_sets(
-    _shared_repos(["libghostty", "libwebp", "maven", "maven3_libraries", "maven_telemetry_libraries", "restarter", "jserialcomm"]),
-    _per_platform_repos("jcef"),
+    shared_repo_set(_label, [
+        "libghostty_vt",
+        "libwebp_natives",
+        "bundled_maven",
+        "bundled_maven3_libraries",
+        "bundled_maven_telemetry_libraries",
+        "restarter",
+    ]),
+    per_platform_repo_set(_label, lambda platform: "jcef_%s" % platform),
 )
 
 # Just the bundled Maven distribution and its libraries: what a test that opens a Maven project needs,
 # because `MavenDistributionsCache` resolves the bundled Maven through `BundledMavenDownloader` and would
 # otherwise download it. Deliberately not the whole dev-launch set - a test has no use for JCEF.
-MAVEN_DEV_LAUNCH_REPOS = _shared_repos(["maven", "maven3_libraries", "maven_telemetry_libraries"])
+MAVEN_DEV_LAUNCH_REPOS = shared_repo_set(_label, ["bundled_maven", "bundled_maven3_libraries", "bundled_maven_telemetry_libraries"])
 
 # What IDE Starter downloads to launch an IDE under test. Deliberately apart from the dev-launch set: a
 # `bazel run` dev launch runs on the JVM Bazel gave it and never touches these 400 MB.
-COMMUNITY_IDE_STARTER_REPOS = _per_platform_repos("jbr")
-
-def jbr_runtime_repository_label(platform):
-    """The `files` filegroup of the unpacked production runtime of one [HOST_PLATFORMS] entry."""
-    platform_parts(platform)
-    return Label("@dev_launch_%s_jbr_runtime_extracted//:files" % platform)
-
-def jbr_runtime_executable_list_label(platform):
-    """The executable list of the repository of [jbr_runtime_repository_label], or `None` for a Windows platform.
-
-    A Windows target gives a file no executable bit, so the collector does not read the list of a Windows runtime.
-    """
-    if platform_parts(platform).os == "windows":
-        return None
-    return Label("@dev_launch_%s_jbr_runtime_extracted//:%s" % (platform, EXECUTABLE_LIST_NAME))
-
-def _dev_launch_deps_community_impl(module_ctx):
-    community = read_properties(module_ctx, _COMMUNITY_DEPENDENCIES)
-
-    dev_launch_deps_repo(
-        name = "dev_launch_libghostty",
-        urls = [lib_ghostty_vt_url(pinned(community, _COMMUNITY_DEPENDENCIES, "libGhosttyVtVersion"))],
-    )
-
-    # CommunityRepositoryModules serial-monitor native library. One zip for every platform.
-    dev_launch_deps_repo(
-        name = "dev_launch_jserialcomm",
-        urls = [jserialcomm_url()],
-    )
-    dev_launch_deps_repo(
-        name = "dev_launch_libwebp",
-        urls = [maven_url(
-            INTELLIJ_DEPENDENCIES_URL,
-            "org.jetbrains.intellij.deps",
-            "libwebp",
-            pinned(community, _COMMUNITY_DEPENDENCIES, "libwebpVersion"),
-            "tar.gz",
-        )],
-    )
-
-    # NativeBinaryDownloader.getRestarter - one archive carrying `<os>-<arch>/restarter` for every platform,
-    # so it is fetched once for all six. Every distribution's `bin` copies it, a dev one included.
-    restarter_url = maven_url(
-        INTELLIJ_DEPENDENCIES_URL,
-        "org.jetbrains.intellij.deps",
-        "restarter",
-        pinned(community, _COMMUNITY_DEPENDENCIES, "restarterBuild"),
-        "tar.gz",
-    )
-    dev_launch_deps_repo(
-        name = "dev_launch_restarter",
-        urls = [restarter_url],
-    )
-
-    # The same archive, unpacked. The platform layout declares `bin/restarter` out of it (`PlatformLayout.withRestarter`),
-    # and the `platform_assets` component of a split distribution places the file from this repository.
-    dev_launch_extracted_repo(
-        name = "dev_launch_restarter_extracted",
-        url = restarter_url,
-    )
-
-    # NativeBinaryDownloader.getLauncher - one archive with the native launcher of every platform, unpacked.
-    # The plan states the launcher facts of each product. The `platform_assets` component of a split distribution
-    # derives the files from them (`_launcher_files`) and places each one from this repository.
-    dev_launch_extracted_repo(
-        name = "dev_launch_launcher_extracted",
-        url = maven_url(
-            INTELLIJ_DEPENDENCIES_URL,
-            "org.jetbrains.intellij.deps",
-            "launcher",
-            pinned(community, _COMMUNITY_DEPENDENCIES, "launcherBuild"),
-            "tar.gz",
-        ),
-    )
-
-    # BundledMavenDownloader.downloadMavenDistribution - the one archive of `:files`, so a plugin layout names it
-    # without its version
-    dev_launch_deps_repo(
-        name = "dev_launch_maven",
-        urls = [maven_url(
-            MAVEN_CENTRAL_URL,
-            "org.apache.maven",
-            "apache-maven",
-            pinned(community, _COMMUNITY_DEPENDENCIES, "bundledMavenVersion"),
-            "zip",
-            classifier = "bin",
-        )],
-    )
-
-    # BundledMavenDownloader.resolveMaven3Libs - a plugin layout copies the whole tree, so it names no jar
-    dev_launch_deps_repo(
-        name = "dev_launch_maven3_libraries",
-        urls = maven_coordinates_urls(
-            MAVEN_CENTRAL_URL,
-            pinned(community, _COMMUNITY_DEPENDENCIES, "bundledMaven3Libraries"),
-        ),
-    )
-
-    # BundledMavenDownloader.resolveMavenTelemetryDependencies - a plugin layout copies the whole tree
-    dev_launch_deps_repo(
-        name = "dev_launch_maven_telemetry_libraries",
-        urls = maven_coordinates_urls(
-            MAVEN_CENTRAL_URL,
-            pinned(community, _COMMUNITY_DEPENDENCIES, "bundledMavenTelemetryLibraries"),
-        ),
-    )
-
-    # downloadPyrefly - one archive per platform holds `<os>-<arch>/pyrefly`, and one archive holds the `license` tree.
-    # The Python community plugin layout copies files of the unpacked archives, so each archive is an extracted
-    # repository alone.
-    pyrefly_build = pinned(community, _COMMUNITY_DEPENDENCIES, "pyreflyBuild")
-    dev_launch_extracted_repo(
-        name = "dev_launch_pyrefly_license_extracted",
-        url = pyrefly_url(None, pyrefly_build),
-    )
-    for platform in HOST_PLATFORMS:
-        dev_launch_extracted_repo(
-            name = "dev_launch_%s_pyrefly_extracted" % platform,
-            url = pyrefly_url(platform, pyrefly_build),
-        )
-
-    jcef_build = pinned(community, _COMMUNITY_DEPENDENCIES, "jcefBuild")
-    runtime_build = pinned(community, _COMMUNITY_DEPENDENCIES, "runtimeBuild")
-    for platform in HOST_PLATFORMS:
-        dev_launch_deps_repo(
-            name = "dev_launch_%s_jcef" % platform,
-            urls = [jcef_url(platform, jcef_build)],
-        )
-        dev_launch_deps_repo(
-            name = "dev_launch_%s_jbr" % platform,
-            urls = [jbr_url(platform, runtime_build)],
-        )
-
-        # BundledRuntimeImpl.archiveName. The runtime that a production distribution bundles as `jbr`, unpacked.
-        dev_launch_extracted_repo(
-            name = "dev_launch_%s_jbr_runtime_extracted" % platform,
-            url = jbr_runtime_url(platform, runtime_build),
-            strip_prefix = jbr_runtime_archive_root(platform, runtime_build),
-            excludes = ["**/.DS_Store"],
-            executable_list = jbr_runtime_executable_list_label(platform) != None,
-        )
-
-    # the same watched inputs always produce the same repositories, so this stays out of MODULE.bazel.lock
-    return module_ctx.extension_metadata(reproducible = True)
-
-dev_launch_deps_community = module_extension(implementation = _dev_launch_deps_community_impl)
+COMMUNITY_IDE_STARTER_REPOS = per_platform_repo_set(_label, lambda platform: "jbr_%s" % platform)

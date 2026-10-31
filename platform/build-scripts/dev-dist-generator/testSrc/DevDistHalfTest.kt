@@ -71,7 +71,7 @@ class DevDistHalfTest {
 
     assertThat(communityIndex.planLabel("@community//platform/core:core")).isEqualTo("//platform/core:core")
     assertThat(communityIndex.planLabel("@lib//:kotlin-stdlib")).isEqualTo("@lib//:kotlin-stdlib")
-    assertThat(communityIndex.planLabel("@dev_launch_restarter_extracted//:x")).isEqualTo("@dev_launch_restarter_extracted//:x")
+    assertThat(communityIndex.planLabel("@restarter_extracted//:x")).isEqualTo("@restarter_extracted//:x")
     assertThat(communityIndex.planLabel("//build/dev-dist-descriptors/intellij.java.plugin:x"))
       .isEqualTo("//build/dev-dist-descriptors/intellij.java.plugin:x")
     assertThat(monorepoIndex.planLabel("@community//platform/core:core")).isEqualTo("@community//platform/core:core")
@@ -291,7 +291,6 @@ private fun targetsModule(target: String, jar: String): BazelTargetsInfo.Targets
     productionJars = listOf(jar),
     testTargets = emptyList(),
     testJars = emptyList(),
-    exports = emptyList(),
     moduleLibraries = emptyMap(),
   )
 }

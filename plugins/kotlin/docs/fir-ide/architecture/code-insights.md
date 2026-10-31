@@ -108,7 +108,9 @@ Do not use `AbstractApplicabilityBasedInspection` or `IntentionBasedInspection`.
 
 ### Structure of an applicable inspection
 
-`KotlinApplicableInspectionBase.visitTargetElement` calls the methods in this order.
+The IntelliJ inspection framework calls `isAvailableForFile` and `buildVisitor` before it inspects elements in a file.
+`buildVisitor` returns a `KtVisitor` that calls `visitTargetElement` for each candidate element.
+`visitTargetElement` runs stages 3 through 6 for that element.
 Each step must be cheaper than the next one.
 
 1. `isAvailableForFile(file)`
@@ -120,7 +122,9 @@ Each step must be cheaper than the next one.
     - Visit only the element type that you need. Use a helper such as `callExpressionVisitor { }`.
     - Call `visitTargetElement(element, holder, isOnTheFly)` from the visitor.
 3. `isApplicableByPsi(element)`
-    - Do all the PSI-only checks here. The Analysis API is forbidden here (`forbidAnalysis`).
+    - Use PSI only for cheap structural checks here.
+      `prepareContext` uses the Analysis API for semantic checks and context data.
+      The Analysis API is forbidden here (`forbidAnalysis`).
     - Reject most elements in this step. For example, check the callee name before you resolve the call.
 4. `getApplicableRanges(element)`
     - Return the narrowest range. Highlight the name or the keyword, not the whole declaration or call.
@@ -140,7 +144,8 @@ Rules for the context:
 - Do not store a raw `PsiElement`. Use `SmartPsiElementPointer`, a name, an `FqName`, a `ClassId`, or a string.
 
 Rules for the quick fix:
-- Extend `KotlinModCommandQuickFix<E>`. It runs in a background read action on a non-physical copy of the file.
+- Extend `KotlinModCommandQuickFix<E>`. It computes changes off the EDT on a non-physical file copy.
+  The IntelliJ Platform can preview the result and apply it to the real file.
 - Do not call `analyze` in `applyFix`. Compute everything in `prepareContext`.
 - Change only `element` or elements from `updater.getWritable(...)`.
   For an element in another file, map it to the copy explicitly.
@@ -359,7 +364,7 @@ Choose the factory type:
 | Factory | Use when |
 |---|---|
 | `KotlinQuickFixFactory.ModCommandBased` | Default. The fix changes PSI, opens a chooser, or starts a template. |
-| `KotlinQuickFixFactory.IntentionBased` | Only if ModCommand cannot express the fix. For example, it changes the project model or the build, opens a refactoring dialog, or creates a file in another module. |
+| `KotlinQuickFixFactory.IntentionBased` | Only if ModCommand cannot express the fix. For example, it changes the project model or the build, or opens a refactoring dialog. |
 | `quickFixesPsiBasedFactory { psi -> ... }` | Only to register an existing PSI-only fix. It must not use the Analysis API. |
 
 Rules for the factory:
@@ -404,8 +409,11 @@ Rules for the action:
   Use `Presentation.of(text).withPriority(PriorityAction.Priority.HIGH)`.
   `getPresentation` is final. `HighPriorityAction` and `LowPriorityAction` throw an exception on these classes.
 - `ElementContextless` and `ElementBased` add the Fix All option by default.
-  A Fix All runs the fix on all the diagnostics of this type in the file, so the fix must be idempotent.
-  It must also not conflict with the same fix on a near element, for example in the same function.
+  Fix All groups quick fixes by their action class, not by their diagnostic.
+  It visits each highlight and applies only the first matching quick fix for that highlight.
+  Other matching fixes on the same highlight are skipped. Add a Fix All test when one highlight offers multiple fixes of the same action class.
+  Disable Fix All if applying only one matching fix makes the result incomplete or unsafe.
+  If different diagnostics use the same action class, include them in the same Fix All test.
 - Return `false` from `addFixAllOption(context, element)` if a batch run is not safe.
   For an `IntentionAction`, return `false` from `availableInBatchMode()`.
   Do this for a fix that changes the build, a dependency, or a project setting, and for a fix that asks the user.
@@ -495,9 +503,14 @@ Then review each generated line. The test accepts any current behavior, also a w
 
 #### Generate and run the tests
 
-A new file in an existing group needs no change in the generator. For a new group, add a `model("$idea/quickfix/<group>", ...)` line
-to `util/test-generator-fir/test/org/jetbrains/kotlin/fir/testGenerator/codeinsight/GenerateK2QuickFixTests.kt`.
-Then run the "Generate Kotlin Tests" run configuration, and commit the changed `HighLevelQuickFixTestGenerated.java`.
+A new file in an existing group needs no change in the generator.
+For a new group, add `model("$idea/quickfix/<group>", ...)` to each applicable `testClass` block in
+`util/test-generator-fir/test/org/jetbrains/kotlin/fir/testGenerator/codeinsight/GenerateK2QuickFixTests.kt`.
+
+- `AbstractHighLevelQuickFixTest` generates single-file tests in `HighLevelQuickFixTestGenerated`.
+- `AbstractHighLevelQuickFixMultiFileTest` generates multi-file tests in `HighLevelQuickFixMultiFileTestGenerated`.
+
+Run the "Generate Kotlin Tests" run configuration, and commit each changed generated class.
 
 Run the tests from the `community` directory:
 
@@ -557,7 +570,7 @@ Each case is one of these kinds:
 
 | Kind | File | Meaning |
 |---|---|---|
-| Positive | `<case>.kt` and `<case>.kt.after` | The action is available, and the result is correct code. |
+| Positive | `<case>.kt`, and `<case>.kt.after` when the action changes code | The action is available, and the result is correct code. An inspection without a quick fix needs only `<case>.kt`. |
 | Negative | `<case>.kt` only | The action is not available. Use `PROBLEM: none`, `"false"`, or `IS_APPLICABLE: false`. |
 | Broken code | `<case>.kt` | The code has a syntax or resolve error. The action does not throw. |
 | Feature off | `<case>.kt` | A language feature or a compiler flag is off. The action is not available. |

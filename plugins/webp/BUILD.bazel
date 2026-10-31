@@ -58,7 +58,7 @@ dev_dist_complex_plugin(
     },
     remainder_trees = ["{platform:destination}"],
     resource_inputs = {
-        "@dev_launch_libwebp//:files": "layout-source:platform-resource-generator:0:0",
+        "@libwebp_natives//:files": "layout-source:platform-resource-generator:0:0",
     },
 )
 ### auto-generated section `dev intellij.webp` end
@@ -88,26 +88,6 @@ jvm_library(
         "//platform/lang-impl",
         "//images",
         "//plugins/webp/lib:webp-libwebp",
-    ],
-)
-
-jvm_library(
-    name = "webp_test_lib",
-    testonly = True,
-    srcs = glob(
-        [],
-        allow_empty = True,
-    ),
-    module_name = "intellij.webp",
-    visibility = ["//visibility:public"],
-    runtime_deps = [
-        # do not sort,
-        ":webp",
-        "//platform/core-api:core_test_lib",
-        "//platform/lang-api:lang_test_lib",
-        "//platform/platform-impl:ide-impl_test_lib",
-        "//platform/lang-impl:lang-impl_test_lib",
-        "//images:images_test_lib",
     ],
 )
 ### auto-generated section `build intellij.webp` end

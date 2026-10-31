@@ -1,0 +1,38 @@
+load("@rules_jvm//:jvm.bzl", "jvm_library", "jvm_provided_library")
+
+### auto-generated section `build intellij.module.dependent` start
+jvm_provided_library(
+    name = "module-tests_test_lib_provided",
+    testonly = True,
+    lib = "//module-tests:module-tests_test_lib",
+)
+
+jvm_library(
+    name = "dependent",
+    srcs = glob(
+        [
+            "src/**/*.kt",
+            "src/**/*.java",
+            "src/**/*.form",
+        ],
+        allow_empty = True,
+    ),
+    kotlinc_opts = "@community//:k21",
+    module_name = "intellij.module.dependent",
+    visibility = ["//visibility:public"],
+    deps = [
+        # do not sort,
+        "//module",
+        ":module-tests_test_lib_provided",
+    ],
+)
+### auto-generated section `build intellij.module.dependent` end
+
+### auto-generated section `iml intellij.module.dependent` start
+exports_files(
+    [
+        "intellij.module.dependent.iml",
+    ],
+    visibility = ["//visibility:public"],
+)
+### auto-generated section `iml intellij.module.dependent` end

@@ -129,10 +129,11 @@ describe('render-guides skills', () => {
     )
   })
 
-  it('skips a URL, a glob, a placeholder and a per-developer file', async () => {
+  it('skips a URL, a home path, a glob, a placeholder and a per-developer file', async () => {
     const text = [
       '`https://example.com/nope`',
       '`@community//nope:nope`',
+      '`~/nope/SKILL.md`',
       '`build/eap/*.py`',
       '`<path-to-iml>/nope`',
       '`.ai/local.md`',
@@ -188,7 +189,7 @@ describe('render-guides skills', () => {
 
     for (const [output, expectedContent] of renderedOutputs) {
       const actualContent = readFileSync(join(repoRoot, output), 'utf8')
-      equal(actualContent, expectedContent, `${output} is stale; run bazel run //.ai:render-guides`)
+      equal(actualContent, expectedContent, `${output} is stale; run ./bazel.cmd run //.ai:render-guides`)
     }
   })
 
@@ -210,7 +211,7 @@ describe('render-guides skills', () => {
 
     for (const [output, expectedContent] of renderedOutputs) {
       const actualContent = readFileSync(join(repoRoot, output), 'utf8')
-      equal(actualContent, expectedContent, `${output} is stale; run bazel run //.ai:render-guides`)
+      equal(actualContent, expectedContent, `${output} is stale; run ./bazel.cmd run //.ai:render-guides`)
     }
     if (existsSync(join(repoRoot, '.ultimate.root.marker'))) {
       equal([...renderedOutputs.keys()].join(' '), '.claude/settings.json .codex/rules/default.rules')

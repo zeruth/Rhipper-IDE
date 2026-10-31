@@ -2,7 +2,7 @@
 package com.intellij.openapi.editor.markup;
 
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.util.ui.JdkConstants;
+import com.intellij.util.ui.JdkConstants.FontStyle;
 import org.jdom.Element;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Contract;
@@ -24,8 +24,15 @@ import java.util.function.BiConsumer;
  */
 public class TextAttributes implements Cloneable {
   private static final Logger LOG = Logger.getInstance(TextAttributes.class);
-  private static final AttributesFlyweight DEFAULT_FLYWEIGHT = AttributesFlyweight
-    .create(null, null, Font.PLAIN, null, EffectType.BOXED, Collections.emptyMap(), null);
+  private static final AttributesFlyweight DEFAULT_FLYWEIGHT = AttributesFlyweight.create(
+    null,
+    null,
+    Font.PLAIN,
+    null,
+    EffectType.BOXED,
+    Collections.emptyMap(),
+    null
+  );
 
   public static final TextAttributes ERASE_MARKER = new TextAttributes() {
     @Override
@@ -33,8 +40,6 @@ public class TextAttributes implements Cloneable {
       return "[ERASE_MARKER]";
     }
   };
-
-  @SuppressWarnings("NotNullFieldNotInitialized") private @NotNull AttributesFlyweight attrs;
 
   /**
    * Merges (layers) the two given text attributes.
@@ -47,115 +52,186 @@ public class TextAttributes implements Cloneable {
   public static TextAttributes merge(@Nullable TextAttributes under, @Nullable TextAttributes above) {
     if (under == null) return above;
     if (above == null) return under;
-
-    TextAttributes attrs = under.clone();
-    if (above.getBackgroundColor() != null){
-      attrs.setBackgroundColor(above.getBackgroundColor());
+    TextAttributes merged = under.clone();
+    if (merged.getClass() != TextAttributes.class) {
+      // a subclass can override the setters, so it gets one setter call for each field
+      if (above.getBackgroundColor() != null) {
+        merged.setBackgroundColor(above.getBackgroundColor());
+      }
+      if (above.getForegroundColor() != null) {
+        merged.setForegroundColor(above.getForegroundColor());
+      }
+      if (above.getFontFamilies() != null) {
+        merged.setFontFamilies(above.getFontFamilies());
+      }
+      merged.setFontType(above.getFontType() | under.getFontType());
+      TextAttributesEffectsBuilder.create(under).coverWith(above).applyTo(merged);
+      return merged;
     }
-    if (above.getForegroundColor() != null){
-      attrs.setForegroundColor(above.getForegroundColor());
-    }
-    attrs.setFontType(above.getFontType() | under.getFontType());
-
-    TextAttributesEffectsBuilder.create(under).coverWith(above).applyTo(attrs);
-
-    return attrs;
-  }
-
-  public TextAttributes() {
-    this(DEFAULT_FLYWEIGHT);
-  }
-
-  private TextAttributes(@NotNull AttributesFlyweight attributesFlyweight) {
-    attrs = attributesFlyweight;
-  }
-
-  public TextAttributes(@NotNull Element element) {
-    readExternal(element);
-  }
-
-  @ApiStatus.Internal
-  public TextAttributes(@NotNull DataInput in) throws IOException {
-    readExternal(in);
-  }
-
-  public TextAttributes(
-    @Nullable Color foregroundColor,
-    @Nullable Color backgroundColor,
-    @Nullable Color effectColor,
-    EffectType effectType,
-    @JdkConstants.FontStyle int fontType
-  ) {
-    setAttributes(foregroundColor, backgroundColor, effectColor, null, effectType, fontType);
-  }
-
-  public void copyFrom(@NotNull TextAttributes other) {
-    attrs = other.attrs;
-  }
-
-  public void setAttributes(Color foregroundColor,
-                            Color backgroundColor,
-                            Color effectColor,
-                            Color errorStripeColor,
-                            EffectType effectType,
-                            @JdkConstants.FontStyle int fontType) {
-    attrs = AttributesFlyweight
-      .create(foregroundColor, backgroundColor, fontType, effectColor, effectType, Collections.emptyMap(), errorStripeColor);
-  }
-
-  @ApiStatus.Internal
-  public void setAttributesNoCache(Color foregroundColor,
-                                   Color backgroundColor,
-                                   Color effectColor,
-                                   Color errorStripeColor,
-                                   EffectType effectType,
-                                   @JdkConstants.FontStyle int fontType) {
-    attrs = AttributesFlyweight
-      .createNoCache(foregroundColor, backgroundColor, fontType, effectColor, effectType, Collections.emptyMap(), errorStripeColor);
-  }
-
-  public boolean isEmpty(){
-    return getForegroundColor() == null && getBackgroundColor() == null && getEffectColor() == null && getFontType() == Font.PLAIN;
-  }
-
-  public @NotNull AttributesFlyweight getFlyweight() {
-    return attrs;
+    AttributesFlyweight flyweight = merged.flyweight;
+    Color background = above.getBackgroundColor();
+    Color foreground = above.getForegroundColor();
+    FontFamilies fontFamilies = above.getFontFamilies();
+    int fontType = validFontType(above.getFontType() | under.getFontType());
+    AttributesFlyweight mergedFlyweight = TextAttributesEffectsBuilder.create(under)
+      .coverWith(above)
+      .applyTo(
+        flyweight,
+        foreground != null ? foreground : flyweight.getForeground(),
+        background != null ? background : flyweight.getBackground(),
+        fontType,
+        fontFamilies != null ? fontFamilies : flyweight.getFontFamilies()
+      );
+    merged.setFlyweight(mergedFlyweight);
+    return merged;
   }
 
   public static @NotNull TextAttributes fromFlyweight(@NotNull AttributesFlyweight flyweight) {
     return new TextAttributes(flyweight);
   }
 
+  private @NotNull AttributesFlyweight flyweight;
+
+  public TextAttributes() {
+    this(DEFAULT_FLYWEIGHT);
+  }
+
+  public TextAttributes(
+    @Nullable Color foregroundColor,
+    @Nullable Color backgroundColor,
+    @Nullable Color effectColor,
+    @Nullable EffectType effectType,
+    @FontStyle int fontType
+  ) {
+    this(AttributesFlyweight.create(
+      foregroundColor,
+      backgroundColor,
+      fontType,
+      effectColor,
+      effectType,
+      Collections.emptyMap(),
+      null
+    ));
+  }
+
+  public TextAttributes(@NotNull Element element) {
+    this(AttributesFlyweightSerDe.create(element));
+  }
+
+  @ApiStatus.Internal
+  public TextAttributes(@NotNull DataInput in) throws IOException {
+    this(AttributesFlyweightSerDe.create(in));
+  }
+
+  private TextAttributes(@NotNull AttributesFlyweight flyweight) {
+    this.flyweight = flyweight;
+  }
+
+  /**
+   * Replaces all fields. The additional effects become empty, and the font families become {@code null}.
+   */
+  public void setAttributes(
+    Color foregroundColor,
+    Color backgroundColor,
+    Color effectColor,
+    Color errorStripeColor,
+    EffectType effectType,
+    @FontStyle int fontType
+  ) {
+    setFlyweight(AttributesFlyweight.create(
+      foregroundColor,
+      backgroundColor,
+      fontType,
+      effectColor,
+      effectType,
+      Collections.emptyMap(),
+      errorStripeColor
+    ));
+  }
+
+  /**
+   * Replaces all fields, and bypasses the flyweight cache. The additional effects become empty.
+   */
+  @ApiStatus.Internal
+  public void setAttributesNoCache(
+    Color foregroundColor,
+    Color backgroundColor,
+    Color effectColor,
+    Color errorStripeColor,
+    EffectType effectType,
+    @FontStyle int fontType,
+    @Nullable FontFamilies fontFamilies
+  ) {
+    setFlyweight(AttributesFlyweight.createNoCache(
+      foregroundColor,
+      backgroundColor,
+      fontType,
+      effectColor,
+      effectType,
+      Collections.emptyMap(),
+      fontFamilies,
+      errorStripeColor
+    ));
+  }
+
+  public @NotNull AttributesFlyweight getFlyweight() {
+    return flyweight;
+  }
+
+  final void setFlyweight(@NotNull AttributesFlyweight flyweight) {
+    this.flyweight = flyweight;
+  }
+
+  public void copyFrom(@NotNull TextAttributes other) {
+    setFlyweight(other.flyweight);
+  }
+
+  public boolean isEmpty() {
+    return getForegroundColor() == null &&
+           getBackgroundColor() == null &&
+           getEffectColor() == null &&
+           getFontType() == Font.PLAIN &&
+           getFontFamilies() == null;
+  }
+
   public Color getForegroundColor() {
-    return attrs.getForeground();
+    return flyweight.getForeground();
   }
 
   public void setForegroundColor(Color color) {
-    attrs = attrs.withForeground(color);
+    setFlyweight(flyweight.withForeground(color));
   }
 
   public Color getBackgroundColor() {
-    return attrs.getBackground();
+    return flyweight.getBackground();
   }
 
   public void setBackgroundColor(Color color) {
-    attrs = attrs.withBackground(color);
+    setFlyweight(flyweight.withBackground(color));
   }
 
   public Color getEffectColor() {
-    return attrs.getEffectColor();
+    return flyweight.getEffectColor();
   }
 
   public void setEffectColor(Color color) {
-    attrs = attrs.withEffectColor(color);
+    setFlyweight(flyweight.withEffectColor(color));
   }
 
   public Color getErrorStripeColor() {
-    return attrs.getErrorStripeColor();
+    return flyweight.getErrorStripeColor();
   }
 
   public void setErrorStripeColor(Color color) {
-    attrs = attrs.withErrorStripeColor(color);
+    setFlyweight(flyweight.withErrorStripeColor(color));
+  }
+
+  public @FontStyle int getFontType() {
+    return flyweight.getFontType();
+  }
+
+  public void setFontType(@FontStyle int type) {
+    setFlyweight(flyweight.withFontType(validFontType(type)));
   }
 
   /**
@@ -163,7 +239,7 @@ public class TextAttributes implements Cloneable {
    */
   @ApiStatus.Experimental
   public boolean hasEffects() {
-    return attrs.hasEffects();
+    return flyweight.hasEffects();
   }
 
   /**
@@ -172,12 +248,30 @@ public class TextAttributes implements Cloneable {
    */
   @ApiStatus.Experimental
   public void setAdditionalEffects(@NotNull Map<@NotNull EffectType, ? extends @NotNull Color> effectsMap) {
-    attrs = attrs.withAdditionalEffects(effectsMap);
+    setFlyweight(flyweight.withAdditionalEffects(effectsMap));
   }
 
   @ApiStatus.Internal
   public Map<@NotNull EffectType, ? extends @NotNull Color> getAdditionalEffects() {
-    return Collections.unmodifiableMap(attrs.getAdditionalEffects());
+    return Collections.unmodifiableMap(flyweight.getAdditionalEffects());
+  }
+
+  public @Nullable EffectType getEffectType() {
+    return flyweight.getEffectType();
+  }
+
+  public void setEffectType(EffectType effectType) {
+    setFlyweight(flyweight.withEffectType(effectType));
+  }
+
+  @ApiStatus.Experimental
+  public void forEachAdditionalEffect(@NotNull BiConsumer<? super EffectType, ? super Color> consumer) {
+    flyweight.getAdditionalEffects().forEach(consumer);
+  }
+
+  @ApiStatus.Experimental
+  public void forEachEffect(@NotNull BiConsumer<? super EffectType, ? super Color> consumer) {
+    flyweight.getAllEffects().forEach(consumer);
   }
 
   /**
@@ -193,72 +287,51 @@ public class TextAttributes implements Cloneable {
       .applyTo(this);
   }
 
-  public @Nullable EffectType getEffectType() {
-    return attrs.getEffectType();
+  @ApiStatus.Experimental
+  public @Nullable FontFamilies getFontFamilies() {
+    return flyweight.getFontFamilies();
   }
 
   @ApiStatus.Experimental
-  public void forEachAdditionalEffect(@NotNull BiConsumer<? super EffectType, ? super Color> consumer) {
-    attrs.getAdditionalEffects().forEach(consumer);
+  public void setFontFamilies(@Nullable FontFamilies fontFamilies) {
+    setFlyweight(flyweight.withFontFamilies(fontFamilies));
   }
 
-  @ApiStatus.Experimental
-  public void forEachEffect(@NotNull BiConsumer<? super EffectType, ? super Color> consumer) {
-    attrs.getAllEffects().forEach(consumer);
+  public void readExternal(@NotNull Element element) {
+    setFlyweight(AttributesFlyweightSerDe.create(element));
   }
 
-  public void setEffectType(EffectType effectType) {
-    attrs = attrs.withEffectType(effectType);
+  public void writeExternal(Element element) {
+    AttributesFlyweightSerDe.writeExternal(flyweight, element);
   }
 
-  @JdkConstants.FontStyle
-  public int getFontType() {
-    return attrs.getFontType();
+  @ApiStatus.Internal
+  public void readExternal(@NotNull DataInput in) throws IOException {
+    setFlyweight(AttributesFlyweightSerDe.create(in));
   }
 
-  public void setFontType(@JdkConstants.FontStyle int type) {
-    if (type < 0 || type > 3) {
-      LOG.error("Wrong font type: " + type);
-      type = Font.PLAIN;
-    }
-    attrs = attrs.withFontType(type);
+  @ApiStatus.Internal
+  public void writeExternal(@NotNull DataOutput out) throws IOException {
+    AttributesFlyweightSerDe.writeExternal(flyweight, out);
   }
 
   /** @noinspection MethodDoesntCallSuperMethod*/
   @Override
   public TextAttributes clone() {
-    return new TextAttributes(attrs);
+    return new TextAttributes(flyweight);
   }
 
   @Override
   public boolean equals(Object obj) {
-    if(!(obj instanceof TextAttributes)) {
+    if (!(obj instanceof TextAttributes)) {
       return false;
     }
-    return Objects.equals(attrs, ((TextAttributes)obj).attrs);
+    return Objects.equals(flyweight, ((TextAttributes)obj).flyweight);
   }
 
   @Override
   public int hashCode() {
-    return attrs.hashCode();
-  }
-
-  public void readExternal(@NotNull Element element) {
-    attrs = AttributesFlyweight.create(element);
-  }
-
-  @ApiStatus.Internal
-  public void readExternal(@NotNull DataInput in) throws IOException {
-    attrs = AttributesFlyweight.create(in);
-  }
-
-  public void writeExternal(Element element) {
-    attrs.writeExternal(element);
-  }
-
-  @ApiStatus.Internal
-  public void writeExternal(@NotNull DataOutput out) throws IOException {
-    attrs.writeExternal(out);
+    return flyweight.hashCode();
   }
 
   @Override
@@ -267,8 +340,17 @@ public class TextAttributes implements Cloneable {
            + ", type=" + getFontType()
            + (getEffectType() == null ? "" : ", effect=" + getEffectType())
            + (getEffectColor() == null ? "" : ", effect color=" + getEffectColor())
-           + (attrs.getAdditionalEffects().isEmpty() ? "" : ", additional=" + attrs.getAdditionalEffects())
+           + (flyweight.getAdditionalEffects().isEmpty() ? "" : ", additional=" + flyweight.getAdditionalEffects())
+           + (getFontFamilies() == null ? "" : ", families=" + getFontFamilies())
            + (getErrorStripeColor() == null ? "" : ", stripe=" + getErrorStripeColor())
            + "]";
+  }
+
+  private static @FontStyle int validFontType(@FontStyle int type) {
+    if (type < 0 || type > 3) {
+      LOG.error("Wrong font type: " + type);
+      return Font.PLAIN;
+    }
+    return type;
   }
 }

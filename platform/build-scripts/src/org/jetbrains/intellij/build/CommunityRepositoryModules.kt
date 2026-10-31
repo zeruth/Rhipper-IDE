@@ -316,8 +316,7 @@ fun getContribRepositoryPlugins(): List<PluginLayout> = java.util.List.of(
     // jSerialComm java JAR - Remember to update the binary dependency when updating to a new version!
     spec.withProjectLibrary("jetbrains.intellij.deps.jSerialComm", LibraryPackMode.STANDALONE_SEPARATE)
 
-    // jSerialComm native library. Keep the content hash in lockstep with `jserialcomm_url` in
-    // `community/build/dev_launch_dependencies.bzl`.
+    // jSerialComm native library. `contrib/serial-monitor/downloads.bzl` reads `JSERIALCOMM_NATIVE_HASH`.
     spec.withGeneratedResources(jSerialCommLayoutAssetSpec()) { targetDir, context ->
       val uri = URI.create(jSerialCommDownloadUrl())
       val downloaded = BuildDependenciesDownloader.downloadFileToCacheLocation(context.paths.communityHomeDirRoot, uri, context.httpSession)
@@ -784,14 +783,14 @@ fun groovyPlugin(additionalModules: List<String> = emptyList(), addition: ((Plug
 
 private fun webpLayoutAssetSpec(os: OsFamily, arch: JvmArchitecture): DevPluginLayoutAssetSpec {
   return DevPluginLayoutAssetSpec(
-    sources = listOf(downloadArchive("@dev_launch_libwebp//:files", "libwebp.tar.gz")),
+    sources = listOf(downloadArchive("@libwebp_natives//:files", "libwebp.tar.gz")),
     assets = listOf(webpLayoutAsset(os, arch)),
   )
 }
 
 private fun allWebpLayoutAssetSpec(): DevPluginLayoutAssetSpec {
   return DevPluginLayoutAssetSpec(
-    sources = listOf(downloadArchive("@dev_launch_libwebp//:files", "libwebp.tar.gz")),
+    sources = listOf(downloadArchive("@libwebp_natives//:files", "libwebp.tar.gz")),
     assets = SUPPORTED_DISTRIBUTIONS.map { (os, arch, _) -> webpLayoutAsset(os, arch) },
   )
 }
@@ -812,7 +811,7 @@ private fun webpLayoutAsset(os: OsFamily, arch: JvmArchitecture): DevPluginLayou
 private fun terminalLayoutAssetSpec(os: OsFamily, arch: JvmArchitecture): DevPluginLayoutAssetSpec {
   val platformDirectory = "${os.osName.lowercase()}-${arch.archName.lowercase()}"
   return DevPluginLayoutAssetSpec(
-    sources = listOf(downloadArchive("@dev_launch_libghostty//:files", "libghostty-vt.zip.zst")),
+    sources = listOf(downloadArchive("@libghostty_vt//:files", "libghostty-vt.zip.zst")),
     assets = listOf(DevPluginLayoutAsset(
       destination = "libghostty-vt/$platformDirectory",
       sources = listOf(0),
@@ -828,7 +827,7 @@ private fun terminalLayoutAssetSpec(os: OsFamily, arch: JvmArchitecture): DevPlu
 
 private fun jcefLayoutAssetSpec(os: OsFamily, arch: JvmArchitecture): DevPluginLayoutAssetSpec {
   return DevPluginLayoutAssetSpec(
-    sources = listOf(downloadArchive("@dev_launch_${devLaunchPlatform(os, arch)}_jcef//:files", "jcef.tar.gz")),
+    sources = listOf(downloadArchive("@jcef_${devLaunchPlatform(os, arch)}//:files", "jcef.tar.gz")),
     assets = listOf(DevPluginLayoutAsset(
       destination = "jcef",
       sources = listOf(0),
@@ -845,7 +844,7 @@ private fun jcefLayoutAssetSpec(os: OsFamily, arch: JvmArchitecture): DevPluginL
 
 private fun mavenDistributionLayoutAssetSpec(): DevPluginLayoutAssetSpec {
   return DevPluginLayoutAssetSpec(
-    sources = listOf(downloadArchive("@dev_launch_maven//:files", "apache-maven-bin.zip")),
+    sources = listOf(downloadArchive("@bundled_maven//:files", "apache-maven-bin.zip")),
     assets = listOf(DevPluginLayoutAsset(
       destination = "lib/maven3",
       sources = listOf(0),
@@ -857,8 +856,8 @@ private fun mavenDistributionLayoutAssetSpec(): DevPluginLayoutAssetSpec {
 private fun maven3LibrariesLayoutAssetSpec(): DevPluginLayoutAssetSpec {
   return DevPluginLayoutAssetSpec(
     sources = listOf(
-      mavenLibrariesDirectory("@dev_launch_maven3_libraries//:files", "maven3-libraries"),
-      mavenLibrariesDirectory("@dev_launch_maven_telemetry_libraries//:files", "maven-telemetry-libraries"),
+      mavenLibrariesDirectory("@bundled_maven3_libraries//:files", "maven3-libraries"),
+      mavenLibrariesDirectory("@bundled_maven_telemetry_libraries//:files", "maven-telemetry-libraries"),
     ),
     assets = listOf(0, 1).map { source ->
       DevPluginLayoutAsset(destination = "lib/intellij.maven.server3", sources = listOf(source), mode = 420)
@@ -868,7 +867,7 @@ private fun maven3LibrariesLayoutAssetSpec(): DevPluginLayoutAssetSpec {
 
 private fun maven4LibrariesLayoutAssetSpec(): DevPluginLayoutAssetSpec {
   return DevPluginLayoutAssetSpec(
-    sources = listOf(mavenLibrariesDirectory("@dev_launch_maven_telemetry_libraries//:files", "maven-telemetry-libraries")),
+    sources = listOf(mavenLibrariesDirectory("@bundled_maven_telemetry_libraries//:files", "maven-telemetry-libraries")),
     assets = listOf(DevPluginLayoutAsset(destination = "lib/intellij.maven.server4", sources = listOf(0), mode = 420)),
   )
 }
@@ -892,7 +891,7 @@ private fun jSerialCommDownloadUrl(): String =
 /** The native jSerialComm archive unpacked into the serial-monitor plugin's `bin/`. */
 private fun jSerialCommLayoutAssetSpec(): DevPluginLayoutAssetSpec {
   return DevPluginLayoutAssetSpec(
-    sources = listOf(downloadArchive("@dev_launch_jserialcomm//:files", "jSerialComm.zip")),
+    sources = listOf(downloadArchive("@jserialcomm_natives//:files", "jSerialComm.zip")),
     assets = listOf(DevPluginLayoutAsset(
       destination = "bin",
       sources = listOf(0),
@@ -918,7 +917,7 @@ fun PlatformLayout.withRestarter() {
 
 private fun restarterLayoutAssetSpec(os: OsFamily, arch: JvmArchitecture): DevPluginLayoutAssetSpec {
   return DevPluginLayoutAssetSpec(
-    sources = listOf(downloadArchive("@dev_launch_restarter//:files", "restarter.tar.gz")),
+    sources = listOf(downloadArchive("@restarter//:files", "restarter.tar.gz")),
     assets = listOf(DevPluginLayoutAsset(
       destination = "bin",
       sources = listOf(0),

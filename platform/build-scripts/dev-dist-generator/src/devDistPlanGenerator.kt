@@ -2213,8 +2213,8 @@ private fun layoutPlacedLibraryLabels(
   }
 }
 
-/** A dev-launch archive label, `@dev_launch_<group>//:files`. Bazel unpacks the same archive as `@dev_launch_<group>_extracted`. */
-private val DEV_LAUNCH_ARCHIVE_LABEL = Regex("@(dev_launch_[a-z0-9_]+)//:files")
+/** A download repository label, `@<repository>//:files`. Bazel unpacks the same archive as `@<repository>_extracted`. */
+private val DOWNLOAD_ARCHIVE_LABEL = Regex("@([a-z0-9_]+)//:files")
 
 private const val EXECUTABLE_MODE_BITS = 0b001_001_001
 
@@ -2226,7 +2226,7 @@ private fun hostPlatformName(os: OsFamily, arch: JvmArchitecture): String = "${i
  * natives of `community/bin` and the product's [ProductProperties.additionalOsSpecificFiles].
  *
  * The component places explicit files, one label each, so a declaration is held to the shape one label can express:
- * one archive-tree asset per archive, whose source is a dev-launch archive, whose mappings name one archive path each
+ * one archive-tree asset per archive, whose source is a download repository, whose mappings name one archive path each
  * with no glob, and whose mode is stated. The file label is the archive path inside the unpacked repository.
  *
  * The natives and the additional files are executable, unless a declaration says otherwise. The Kotlin fragment that
@@ -2247,10 +2247,10 @@ internal fun collectPlatformAssets(layout: PlatformLayout, properties: ProductPr
         }
         require(asset.mode != 0) { "A platform dist file on $hostPlatform must state its mode: ${asset.destination}" }
         val source = requireNotNull(spec.sources.get(asset.sources.single()) as? DevPluginLayoutAssetSource.BazelTarget) {
-          "A platform dist file on $hostPlatform must read a dev-launch archive as a Bazel target: ${asset.destination}"
+          "A platform dist file on $hostPlatform must read a download repository as a Bazel target: ${asset.destination}"
         }
-        val group = requireNotNull(DEV_LAUNCH_ARCHIVE_LABEL.matchEntire(source.label)?.groupValues?.get(1)) {
-          "A platform dist file on $hostPlatform must read a dev-launch archive, @dev_launch_<group>//:files: ${source.label}"
+        val repository = requireNotNull(DOWNLOAD_ARCHIVE_LABEL.matchEntire(source.label)?.groupValues?.get(1)) {
+          "A platform dist file on $hostPlatform must read a download repository, @<repository>//:files: ${source.label}"
         }
         archives.add(source.label)
         for (mapping in transform.mappings) {
@@ -2260,7 +2260,7 @@ internal fun collectPlatformAssets(layout: PlatformLayout, properties: ProductPr
           val relative = mapping.pattern.split('/').drop(mapping.stripComponents).joinToString("/")
           require(relative.isNotEmpty()) { "A platform dist file on $hostPlatform strips its whole path: ${mapping.pattern}" }
           files.getOrPut(hostPlatform) { ArrayList() }.add(PlatformAssetFile(
-            source = "@${group}_extracted//:${mapping.pattern}",
+            source = "@${repository}_extracted//:${mapping.pattern}",
             path = listOf(asset.destination, mapping.destination, relative).filter { it.isNotEmpty() }.joinToString("/"),
             executable = asset.mode and EXECUTABLE_MODE_BITS != 0,
           ))
@@ -2299,9 +2299,9 @@ internal fun collectPlatformAssets(layout: PlatformLayout, properties: ProductPr
   return PlatformAssets(files = files, archives = archives.toList())
 }
 
-/** A module's own `jvm_library` target: the jar target minus `.jar`. */
+/** A module's own `jvm_library` target: the jar target minus `.jar`. A test module has the test jar target only. */
 internal fun moduleRuleTarget(module: String, targets: BazelTargetsInfo.TargetsFile): String? {
-  return productionTarget(module = module, targets = targets)?.removeSuffix(MODULE_JAR_TARGET_SUFFIX)
+  return moduleJarTarget(module = module, targets = targets)?.removeSuffix(MODULE_JAR_TARGET_SUFFIX)
 }
 
 /** A module's single test jar output label. */
@@ -2320,9 +2320,10 @@ private const val MODULE_JAR_TARGET_SUFFIX = ".jar"
 /** A label in the community repository, as the JPS-to-Bazel converter writes it from the ultimate monorepo. */
 internal const val COMMUNITY_REPOSITORY_PREFIX: String = "@community//"
 
-/** The one production target the converter emits for a module, or null when it emits none or several. */
-private fun productionTarget(module: String, targets: BazelTargetsInfo.TargetsFile): String? {
-  return targets.modules.get(module)?.productionTargets?.singleOrNull()?.takeIf { it.endsWith(MODULE_JAR_TARGET_SUFFIX) }
+/** The one jar target the converter emits for a module, or null when it emits none or several. */
+private fun moduleJarTarget(module: String, targets: BazelTargetsInfo.TargetsFile): String? {
+  val description = targets.modules.get(module) ?: return null
+  return (description.productionTargets.singleOrNull() ?: description.testTargets.singleOrNull())?.takeIf { it.endsWith(MODULE_JAR_TARGET_SUFFIX) }
 }
 
 private class MutablePayload {
