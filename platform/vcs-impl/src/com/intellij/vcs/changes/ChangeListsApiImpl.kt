@@ -20,6 +20,7 @@ import com.intellij.platform.vcs.impl.shared.rpc.ChangeId
 import com.intellij.platform.vcs.impl.shared.rpc.ChangeListDto
 import com.intellij.platform.vcs.impl.shared.rpc.ChangeListsApi
 import com.intellij.platform.vcs.impl.shared.rpc.FilePathDto
+import com.intellij.platform.vcs.impl.shared.rpc.UnversionedFilesDto
 import com.intellij.util.asDisposable
 import com.intellij.vcs.rpc.ProjectScopeRpcHelper.getProjectScoped
 import com.intellij.vcs.rpc.ProjectScopeRpcHelper.projectScoped
@@ -69,11 +70,19 @@ internal class ChangeListsApiImpl : ChangeListsApi {
       send(changeListManager.changeLists.map { ChangeListEqualityWrapper(it) })
     }.distinctUntilChanged().map { wrappers -> wrappers.map { it.changeList.toDto() } }
 
-  override suspend fun getUnversionedFiles(projectId: ProjectId): Flow<List<FilePathDto>> =
-    observeUnchangedFiles(projectId) { it.unversionedFilesPaths }
+  override suspend fun getUnversionedFiles(projectId: ProjectId, maxFilesInTree: Int): Flow<UnversionedFilesDto> =
+    observeUnchangedFiles(projectId) { it.unversionedFilesPaths }.map { paths ->
+      if (paths.size > maxFilesInTree) {
+        val directoryCount = paths.count { it.isDirectory }
+        UnversionedFilesDto.Counts(paths.size - directoryCount, directoryCount)
+      }
+      else {
+        UnversionedFilesDto.Files(paths.map { it.toDtoWithNoVirtualFile() })
+      }
+    }.distinctUntilChanged()
 
   override suspend fun getIgnoredFiles(projectId: ProjectId): Flow<List<FilePathDto>> =
-    observeUnchangedFiles(projectId) { it.ignoredFilePaths }
+    observeUnchangedFiles(projectId) { it.ignoredFilePaths }.map { paths -> paths.map { it.toDtoWithNoVirtualFile() } }
 
   override suspend fun moveChanges(projectId: ProjectId, changes: List<ChangeId>, changeListId: String) =
     projectScoped(projectId) { project ->
@@ -91,7 +100,7 @@ internal class ChangeListsApiImpl : ChangeListsApi {
       ScheduleForAdditionAction.Manager.addUnversionedFilesToVcsInBackground(project, targetChangeList, virtualFiles)
     }
 
-  private suspend fun observeUnchangedFiles(projectId: ProjectId, onUpdate: (ChangeListManager) -> List<FilePath>): Flow<List<FilePathDto>> =
+  private suspend fun observeUnchangedFiles(projectId: ProjectId, onUpdate: (ChangeListManager) -> List<FilePath>): Flow<List<FilePath>> =
     projectScopedCallbackFlow(projectId) { project, _ ->
       val changeListManager = ChangeListManager.getInstance(project)
       changeListManager.addChangeListListener(object : ChangeListAdapter() {
@@ -102,9 +111,29 @@ internal class ChangeListsApiImpl : ChangeListsApi {
             }
           }
         }
+
+        override fun changeListUpdateDone() {
+          if (!changeListManager.isInUpdate) {
+            launch {
+              send(onUpdate(changeListManager))
+            }
+          }
+        }
       }, this@projectScopedCallbackFlow.asDisposable())
       send(onUpdate(changeListManager))
-    }.distinctUntilChanged().map { filePaths -> filePaths.map { FilePathDto.toDto(it) } }
+    }.distinctUntilChanged()
+
+  /**
+   * Same as [FilePathDto.toDto], but without the virtual file.
+   */
+  private fun FilePath.toDtoWithNoVirtualFile(): FilePathDto {
+    return FilePathDto(
+      virtualFileId = null,
+      path = path,
+      isDirectory = isDirectory,
+      localFilePath = this,
+    )
+  }
 
   private fun LocalChangeList.toDto(): ChangeListDto = ChangeListDto(
     name = name,

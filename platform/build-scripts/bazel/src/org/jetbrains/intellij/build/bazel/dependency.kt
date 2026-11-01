@@ -511,13 +511,19 @@ private fun addDep(
       require(scope != JpsJavaDependencyScope.TEST || isTest) {
         "module must not have TEST-scope dependencies that only leak onto the test classpath of dependent modules, please consider changing their scope to RUNTIME or move them to the affected test modules: ${dependentModule.imlFile}"
       }
-      // TODO: require scope != JpsJavaDependencyScope.COMPILE || !isTest
+      require(scope != JpsJavaDependencyScope.COMPILE || !isTest) {
+        "module must not have COMPILE-scope dependencies, please change their scope to TEST: ${dependentModule.imlFile}"
+      }
 
       if (hasSources) {
         deps.add(dependencyLabel)
       }
       else {
-        // TODO: require scope != JpsJavaDependencyScope.COMPILE || isExported  -- aka TEST_RUNTIME
+        require(isExported ||
+                dependentModule.module.name == "fleet.dock.bootstrapWasm"  // TODO: remove this
+        ) {
+          "module must not have COMPILE-scope, TEST-scope, or PROVIDED-scope dependencies, please consider changing their scope to RUNTIME or remove them: ${dependentModule.imlFile}"
+        }
         runtimeDeps.add(dependencyLabel)
       }
       if (isExported) {
@@ -525,7 +531,9 @@ private fun addDep(
       }
     }
     JpsJavaDependencyScope.RUNTIME -> {
-      // TODO: require !isExported
+      require(!isExported) {
+        "module must not have exported RUNTIME-scope dependencies, please unexport them: ${dependentModule.imlFile}"
+      }
       runtimeDeps.add(dependencyLabel)
     }
     JpsJavaDependencyScope.PROVIDED -> {
