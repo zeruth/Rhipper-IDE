@@ -5,6 +5,7 @@ import com.intellij.execution.ExecutionException
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.configurations.PathEnvironmentVariableUtil
 import com.rhipper.ide.RhipperBundle
+import com.rhipper.ide.build.RhipperPortCMake
 import com.rhipper.ide.project.RhipperArch
 import com.rhipper.ide.project.RhipperProjectConfig
 import com.rhipper.ide.settings.RhipperSettings
@@ -38,9 +39,14 @@ class RhipperCommandLines(private val config: RhipperProjectConfig, private val 
     return prepare(GeneralCommandLine(listOf(settings.pythonExecutable(), "-u", rhipperHome.resolve(script).toString()) + args))
   }
 
-  /** A command that runs [steps] of the pipeline. [extraArgs] go to `pipeline32.py` for a 32-bit project. */
+  /**
+   * A command that runs [steps] of the pipeline. [extraArgs] go to `pipeline32.py` for a 32-bit project. When the steps include the
+   * build of an x86 project, it first writes the `CMakeLists.txt` that a new project lacks.
+   */
   fun pipeline(step: RhipperStep, scope: RhipperStepScope, extraArgs: List<String> = emptyList()): GeneralCommandLine {
     if (config.arch == RhipperArch.X86) {
+      val builds = if (scope == RhipperStepScope.ONLY) step == RhipperStep.BUILD else step <= RhipperStep.BUILD
+      if (builds) RhipperPortCMake.writeIfMissing(config, rhipperHome)
       val selector = if (scope == RhipperStepScope.ONLY) "--only" else "--from"
       return python("pipeline32.py", listOf(selector, step.id) + extraArgs)
     }
@@ -91,10 +97,11 @@ class RhipperCommandLines(private val config: RhipperProjectConfig, private val 
 
   /**
    * Builds the port in [buildConfig], such as `Release` or `Debug`. CMake configures first, because a new translation changes the
-   * list of the generated files, as `pipeline32.py` does it.
+   * list of the generated files, as `pipeline32.py` does it. A new project gets its `CMakeLists.txt` and its build directory.
    */
   fun buildPort(buildConfig: String): GeneralCommandLine {
-    val configure = listOf("cmake", config.resolve(config.build.dir).toString())
+    RhipperPortCMake.writeIfMissing(config, rhipperHome)
+    val configure = RhipperPortCMake.configureCommand(config, "cmake")
     val script = listOf(configure, buildCommand(buildConfig)).joinToString(" && ") { command -> command.joinToString(" ") { shellQuote(it) } }
     return prepare(GeneralCommandLine(settings.bashExecutable(), "-c", script))
   }
@@ -110,7 +117,8 @@ class RhipperCommandLines(private val config: RhipperProjectConfig, private val 
     if (mode == PortBuildMode.CLEAN) {
       return listOf(prepare(GeneralCommandLine(listOf(cmake, "--build", buildDir, "--config", buildConfig, "--target", "clean") + native)))
     }
-    val configure = listOf(cmake, buildDir)
+    RhipperPortCMake.writeIfMissing(config, rhipperHome)
+    val configure = RhipperPortCMake.configureCommand(config, cmake)
     val cleanFirst = if (mode == PortBuildMode.REBUILD) listOf("--clean-first") else emptyList()
     val build = listOf(cmake) + buildCommand(buildConfig).drop(1) + cleanFirst + native
     return listOf(configure, build).map { prepare(GeneralCommandLine(it)) }
