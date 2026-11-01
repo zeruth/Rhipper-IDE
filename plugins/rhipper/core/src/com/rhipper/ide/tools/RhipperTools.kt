@@ -111,7 +111,15 @@ class RhipperTools {
   val managedGhidra: Path?
     get() = findChild(toolsDir.resolve("ghidra")) { it.resolve("support").resolve(if (SystemInfo.isWindows) "analyzeHeadless.bat" else "analyzeHeadless").isRegularFile() }
 
-  val managedGhidraProjects: Path get() = toolsDir.resolve("ghidra-projects")
+  /**
+   * `ghidra-projects` in the tools directory, unless a directory on that path starts with a dot (the default `.rhipper` does):
+   * Ghidra refuses a project there ("Path element starting with '.' is not permitted"), so then `rhipper-ghidra-projects` in the home directory.
+   */
+  val managedGhidraProjects: Path
+    get() {
+      val inTools = toolsDir.resolve("ghidra-projects")
+      return if (ghidraAcceptsProjectPath(inTools)) inTools else Path.of(System.getProperty("user.home"), "rhipper-ghidra-projects")
+    }
 
   val managedClangd: Path?
     get() = findChild(toolsDir.resolve("clangd")) { it.resolve("bin").resolve(exe("clangd")).isRegularFile() }?.resolve("bin")?.resolve(exe("clangd"))
@@ -470,6 +478,9 @@ class RhipperTools {
     fun getInstance(): RhipperTools = service()
 
     fun exe(name: String): String = if (SystemInfo.isWindows) "$name.exe" else name
+
+    /** Ghidra's ProjectLocator refuses a projects directory with any directory on its path starting with a dot. */
+    fun ghidraAcceptsProjectPath(path: Path): Boolean = path.toAbsolutePath().none { it.toString().startsWith(".") }
 
     /** The first directory that the `ghidra.install` setting [pattern] matches, as Rhipper's `project.py` reads it: a glob. */
     fun resolveGlob(root: Path, pattern: String): Path? {
