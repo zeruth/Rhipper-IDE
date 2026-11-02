@@ -13,6 +13,7 @@ import com.rhipper.ide.corpus.FidelityEntry
 import com.rhipper.ide.corpus.GenFunction
 import com.rhipper.ide.corpus.RhipperCorpus
 import com.rhipper.ide.corpus.RhipperFidelity
+import com.rhipper.ide.corpus.RhipperFidelityReports
 import com.rhipper.ide.corpus.RhipperGenIndex
 import com.rhipper.ide.corpus.RhipperNavigator
 import com.rhipper.ide.corpus.RhipperView
@@ -42,6 +43,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -89,6 +92,7 @@ private fun fidelityStatsOf(entries: List<FidelityEntry>): FidelityStats? {
 internal class RhipperDashboardPresenter(private val project: Project, private val scope: CoroutineScope) {
   private val projectService = RhipperProjectService.getInstance(project)
   private val pipelineStatus = RhipperPipelineStatus.getInstance(project)
+  private val fidelityReports = RhipperFidelityReports.getInstance(project)
 
   private val data = MutableStateFlow<ProjectData?>(null)
   private val loading = MutableStateFlow(true)
@@ -128,12 +132,17 @@ internal class RhipperDashboardPresenter(private val project: Project, private v
     combine(data, loading, fidelityKind, fidelityBucket, selectedFidelity) { data, loading, kind, bucket, selected ->
       fidelityState(data, loading, kind, bucket, selected)
     }
+      .combine(fidelityReports.measuring) { state, measuring -> state.copy(measuring = measuring) }
       .flowOn(Dispatchers.Default)
       .stateIn(scope, SharingStarted.Eagerly, FidelityState())
 
   init {
     scope.launch {
       projectService.state.map { (it as? RhipperProjectState.Loaded)?.config }.distinctUntilChanged().collect { load() }
+    }
+    // a measure ends with a new build/fidelity.json
+    scope.launch {
+      fidelityReports.measuring.drop(1).filter { !it }.collect { load() }
     }
   }
 
@@ -167,6 +176,10 @@ internal class RhipperDashboardPresenter(private val project: Project, private v
   fun runStep(stepId: String, fromHere: Boolean) {
     val step = RhipperStep.of(stepId) ?: return
     scope.launch(Dispatchers.EDT) { runStep(project, step, if (fromHere) RhipperStepScope.FROM else RhipperStepScope.ONLY) }
+  }
+
+  fun measureFidelity() {
+    fidelityReports.measure()
   }
 
   fun openLog(stepId: String) {

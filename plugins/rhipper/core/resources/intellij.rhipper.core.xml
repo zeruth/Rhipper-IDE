@@ -87,11 +87,13 @@
     <group id="Rhipper.PipelineToolbar">
       <group id="Rhipper.PipelineSteps" class="com.rhipper.ide.pipeline.RhipperStepButtonsGroup"/>
       <group id="Rhipper.RunFrom" class="com.rhipper.ide.pipeline.RhipperRunFromGroup" icon="AllIcons.Actions.RunAll" popup="true"/>
+      <action id="Rhipper.MeasureFidelity" class="com.rhipper.ide.corpus.RhipperMeasureFidelityAction" icon="AllIcons.Actions.ProfileCPU"/>
       <add-to-group group-id="MainToolbarRight" anchor="before" relative-to-action="NewUiRunWidget"/>
     </group>
 
     <group id="Rhipper.Menu" popup="true" icon="com.rhipper.ide.RhipperIcons.Rhipper">
       <action id="Rhipper.GoToAddress" class="com.rhipper.ide.corpus.RhipperGoToAddressAction"/>
+      <reference ref="Rhipper.MeasureFidelity"/>
       <action id="Rhipper.FidelityReports" class="com.rhipper.ide.corpus.RhipperFidelityReportsAction"/>
       <separator/>
       <reference ref="Rhipper.RunFrom"/>

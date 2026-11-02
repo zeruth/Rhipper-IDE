@@ -8,7 +8,11 @@ import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.impl.HTMLEditorProvider
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.project.Project
+import com.intellij.platform.ide.progress.withBackgroundProgress
+import com.rhipper.ide.RhipperBundle
 import com.rhipper.ide.pipeline.RhipperRunResult
 import com.rhipper.ide.pipeline.runRhipperScript
 import com.rhipper.ide.project.RhipperArch
@@ -16,6 +20,10 @@ import com.rhipper.ide.project.RhipperProjectConfig
 import com.rhipper.ide.project.rhipperConfig
 import com.rhipper.ide.settings.RhipperSettings
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -97,6 +105,36 @@ private const val KEPT = 30
 @Service(Service.Level.PROJECT)
 class RhipperFidelityReports(private val project: Project, val scope: kotlinx.coroutines.CoroutineScope) {
   private val mutex = Mutex()
+  private val measuringState = MutableStateFlow(false)
+
+  /** `true` while [measure] runs. */
+  val measuring: StateFlow<Boolean> = measuringState.asStateFlow()
+
+  /**
+   * Measures the port in the background with its bytes, keeps the report, and opens its page. A failure shows a notification. It
+   * does nothing while a measure runs.
+   */
+  fun measure() {
+    if (!measuringState.compareAndSet(expect = false, update = true)) return
+    scope.launch {
+      try {
+        val result = withBackgroundProgress(project, RhipperBundle.message("fidelity.reports.measuring")) {
+          make(bytes = true, label = "")
+        }
+        val report = result.report
+        if (report == null) {
+          NotificationGroupManager.getInstance().getNotificationGroup("Rhipper")
+            .createNotification(RhipperBundle.message("fidelity.reports.failed", result.failedStep.orEmpty()), NotificationType.ERROR)
+            .notify(project)
+          return@launch
+        }
+        open(report)
+      }
+      finally {
+        measuringState.value = false
+      }
+    }
+  }
 
   private fun config(): RhipperProjectConfig = project.rhipperConfig ?: error("The project has no valid rhipper.json at its root")
 

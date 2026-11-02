@@ -62,7 +62,8 @@ internal class RhipperToolWindowFactory : ToolWindowFactory, DumbAware {
     }
     toolWindow.addComposeTab(RhipperBundle.message("toolwindow.tab.fidelity")) {
       val state by presenter.fidelity.collectAsState()
-      FidelityScreen(state, fidelityActions, onKindChange = presenter::setFidelityKind, onBucketClick = presenter::setFidelityBucket)
+      FidelityScreen(state, fidelityActions, onKindChange = presenter::setFidelityKind, onBucketClick = presenter::setFidelityBucket,
+                     onMeasure = presenter::measureFidelity)
     }
   }
 }

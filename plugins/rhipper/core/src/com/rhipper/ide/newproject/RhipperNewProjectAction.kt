@@ -96,7 +96,8 @@ internal class RhipperNewProjectDialog(project: Project?) : DialogWrapper(projec
   private val arch = graph.property(RhipperArch.X86_64.id)
   private val imageBase = graph.property("0x140000000")
   private val gen = graph.property("src/gen")
-  // the tools that the IDE found or installed: a first-time user then has nothing to fill in
+  // the tools that the IDE found or installed: a first-time user then has nothing to fill in. The Ghidra and its projects directory
+  // come from the settings, and the dialog does not show them
   private val rhipperHome = graph.property("")
   private val ghidraInstall = graph.property("")
   private val ghidraProjects = graph.property("")
@@ -142,7 +143,7 @@ internal class RhipperNewProjectDialog(project: Project?) : DialogWrapper(projec
     return buildList {
       if (rhipperHome.get().isBlank()) add(RhipperTool.RHIPPER)
       if (tools.managedPython == null && RhipperSettings.getInstance().state.python.isNullOrBlank()) add(RhipperTool.PYTHON)
-      if (ghidraInstall.get().isBlank()) add(RhipperTool.GHIDRA)
+      if (ghidraInstall.get().isBlank() || !RhipperTools.ghidraPatched(Path.of(ghidraInstall.get()))) add(RhipperTool.GHIDRA)
     }
   }
 
@@ -201,12 +202,6 @@ internal class RhipperNewProjectDialog(project: Project?) : DialogWrapper(projec
       }.visibleIf(missingTools.transform { it.isNotEmpty() })
       row(RhipperBundle.message("settings.rhipper.home")) {
         textFieldWithBrowseButton(FileChooserDescriptorFactory.createSingleFolderDescriptor()).bindText(rhipperHome).align(AlignX.FILL)
-      }
-      row(RhipperBundle.message("new.project.ghidra.install")) {
-        textFieldWithBrowseButton(FileChooserDescriptorFactory.createSingleFolderDescriptor()).bindText(ghidraInstall).align(AlignX.FILL)
-      }
-      row(RhipperBundle.message("new.project.ghidra.projects")) {
-        textFieldWithBrowseButton(FileChooserDescriptorFactory.createSingleFolderDescriptor()).bindText(ghidraProjects).align(AlignX.FILL)
       }
     }
     if (hasProject) {

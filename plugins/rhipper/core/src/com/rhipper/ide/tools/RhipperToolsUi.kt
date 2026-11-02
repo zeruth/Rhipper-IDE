@@ -61,7 +61,7 @@ class RhipperToolsInstaller(private val coroutineScope: CoroutineScope) {
           for (tool in ordered) {
             reporter.itemStep(RhipperBundle.message("tool.installing", tool.displayName)) {
               try {
-                RhipperTools.getInstance().install(tool) { stage, done, total ->
+                RhipperTools.getInstance().install(tool, project?.rhipperConfig) { stage, done, total ->
                   ApplicationManager.getApplication().invokeLater({ dialog.update(tool, stage, done, total) }, ModalityState.any())
                 }
               }

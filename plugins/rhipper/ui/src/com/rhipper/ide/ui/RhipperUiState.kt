@@ -113,4 +113,6 @@ data class FidelityState(
   val bucket: Int? = null,
   val items: List<FunctionItem> = emptyList(),
   val selected: FunctionDetail? = null,
+  /** `true` while the IDE measures the port. */
+  val measuring: Boolean = false,
 )

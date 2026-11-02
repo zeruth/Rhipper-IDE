@@ -1,15 +1,11 @@
 // Copyright 2026 the Rhipper contributors. Use of this source code is governed by the Apache 2.0 license.
 package com.rhipper.ide.corpus
 
-import com.intellij.notification.NotificationGroupManager
-import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.project.DumbAwareAction
-import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopupFactory
-import com.intellij.platform.ide.progress.withBackgroundProgress
 import com.rhipper.ide.RhipperBundle
 import com.rhipper.ide.project.rhipperConfig
 import kotlinx.coroutines.Dispatchers
@@ -47,7 +43,7 @@ internal class RhipperFidelityReportsAction : DumbAwareAction() {
           .setRenderer(com.intellij.ui.SimpleListCellRenderer.create("") { item -> label(item) })
           .setItemChosenCallback { item ->
             when (item) {
-              is ReportItem.Measure -> measure(project, reports)
+              is ReportItem.Measure -> reports.measure()
               is ReportItem.Kept -> reports.scope.launch { reports.open(item.report) }
             }
           }
@@ -69,19 +65,20 @@ internal class RhipperFidelityReportsAction : DumbAwareAction() {
       "below ${s.below}  stubs ${s.stubs}${if (r.hasBytes) "  bytes" else ""}$note"
     }
   }
+}
 
-  private fun measure(project: Project, reports: RhipperFidelityReports) {
-    reports.scope.launch {
-      val result = withBackgroundProgress(project, RhipperBundle.message("fidelity.reports.measuring")) {
-        reports.make(bytes = true, label = "")
-      }
-      val report = result.report
-      val group = NotificationGroupManager.getInstance().getNotificationGroup("Rhipper")
-      if (report == null) {
-        group.createNotification(RhipperBundle.message("fidelity.reports.failed", result.failedStep.orEmpty()), NotificationType.ERROR).notify(project)
-        return@launch
-      }
-      reports.open(report)
-    }
+/** Measures the port, keeps the report and opens it: the button beside the pipeline steps. It is off while a measure runs. */
+internal class RhipperMeasureFidelityAction : DumbAwareAction() {
+  override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
+
+  override fun update(e: AnActionEvent) {
+    val project = e.project
+    e.presentation.isVisible = project?.rhipperConfig != null
+    e.presentation.isEnabled = project != null && e.presentation.isVisible && !RhipperFidelityReports.getInstance(project).measuring.value
+  }
+
+  override fun actionPerformed(e: AnActionEvent) {
+    val project = e.project ?: return
+    RhipperFidelityReports.getInstance(project).measure()
   }
 }

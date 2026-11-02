@@ -22,6 +22,7 @@ import com.rhipper.ide.RhipperBundle
 import org.jetbrains.jewel.ui.component.CircularProgressIndicator
 import org.jetbrains.jewel.ui.component.Divider
 import org.jetbrains.jewel.ui.component.Link
+import org.jetbrains.jewel.ui.component.OutlinedButton
 import org.jetbrains.jewel.ui.component.Text
 import org.jetbrains.jewel.ui.component.ToggleableChip
 
@@ -31,13 +32,19 @@ internal fun FidelityScreen(
   actions: FunctionListActions,
   onKindChange: (String?) -> Unit,
   onBucketClick: (Int) -> Unit,
+  onMeasure: () -> Unit,
 ) {
   Column(Modifier.fillMaxSize()) {
     when {
       state.loading && state.stats == null -> Centered { CircularProgressIndicator() }
-      state.stats == null && state.kind == null -> Centered { SecondaryText(RhipperBundle.message("fidelity.none"), fontSize = 13) }
+      state.stats == null && state.kind == null -> Centered {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          SecondaryText(RhipperBundle.message("fidelity.none"), fontSize = 13)
+          MeasureButton(state.measuring, onMeasure)
+        }
+      }
       else -> {
-        FidelitySummary(state, onKindChange, onBucketClick)
+        FidelitySummary(state, onKindChange, onBucketClick, onMeasure)
         Divider(Orientation.Horizontal, Modifier.fillMaxWidth())
         Row(Modifier.fillMaxSize()) {
           FunctionList(state.items, state.selected?.item?.address, actions, Modifier.weight(0.62f).fillMaxHeight())
@@ -50,7 +57,14 @@ internal fun FidelityScreen(
 }
 
 @Composable
-private fun FidelitySummary(state: FidelityState, onKindChange: (String?) -> Unit, onBucketClick: (Int) -> Unit) {
+private fun MeasureButton(measuring: Boolean, onMeasure: () -> Unit) {
+  OutlinedButton(onClick = onMeasure, enabled = !measuring) {
+    Text(RhipperBundle.message(if (measuring) "fidelity.measuring" else "fidelity.measure"))
+  }
+}
+
+@Composable
+private fun FidelitySummary(state: FidelityState, onKindChange: (String?) -> Unit, onBucketClick: (Int) -> Unit, onMeasure: () -> Unit) {
   val stats = state.stats
   Row(
     Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(12.dp),
@@ -93,6 +107,9 @@ private fun FidelitySummary(state: FidelityState, onKindChange: (String?) -> Uni
         Spacer(Modifier.weight(1f))
         Text("1.0", fontSize = 10.sp, color = RhipperColors.neutral)
       }
+    }
+    Column(Modifier.fillMaxHeight(), verticalArrangement = Arrangement.Center) {
+      MeasureButton(state.measuring, onMeasure)
     }
   }
   if (state.kinds.size > 1) {

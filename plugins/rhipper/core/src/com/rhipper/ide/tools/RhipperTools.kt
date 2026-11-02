@@ -167,7 +167,11 @@ class RhipperTools {
       RhipperTool.GHIDRA -> {
         val configured = config?.ghidra?.install?.let { resolveGlob(config.root, it) }
         val global = settings.ghidraInstall()
+        val found = configured ?: global
         when {
+          // Rhipper's project.py refuses it, so it counts as missing; its install puts the fixes in
+          found != null && !ghidraPatched(found) ->
+            ToolStatus(tool, ToolSource.MISSING, ghidraVersion(found), found, RhipperBundle.message("tool.ghidra.unpatched", found))
           configured != null -> ToolStatus(tool, ToolSource.CONFIGURED, ghidraVersion(configured), configured)
           global != null && global == managedGhidra -> ToolStatus(tool, ToolSource.MANAGED, ghidraVersion(global), global)
           global != null -> ToolStatus(tool, ToolSource.CONFIGURED, ghidraVersion(global), global)
@@ -238,7 +242,7 @@ class RhipperTools {
   // region Installs
 
   /** Installs [tool] into the tools directory, and reports each stage and each downloaded byte to [progress]. */
-  suspend fun install(tool: RhipperTool, progress: InstallProgress = InstallProgress { _, _, _ -> }) {
+  suspend fun install(tool: RhipperTool, config: RhipperProjectConfig? = null, progress: InstallProgress = InstallProgress { _, _, _ -> }) {
     mutex.withLock {
       this.progress = progress
       withContext(Dispatchers.IO) {
@@ -247,7 +251,7 @@ class RhipperTools {
           RhipperTool.RHIPPER -> installRhipper(latestRhipperVersion())
           RhipperTool.PYTHON -> installPython()
           RhipperTool.JDK -> installJdk()
-          RhipperTool.GHIDRA -> installGhidra()
+          RhipperTool.GHIDRA -> installGhidra(config)
           RhipperTool.CLANGD -> installClangd()
           RhipperTool.GIT_BASH, RhipperTool.CMAKE -> throw IOException(RhipperBundle.message("tool.not.installable", tool.displayName))
         }
@@ -317,7 +321,16 @@ class RhipperTools {
     managedJdk ?: throw IOException(RhipperBundle.message("tool.unpack.failed", "JDK"))
   }
 
-  private suspend fun installGhidra() {
+  /**
+   * Installs Ghidra with Rhipper's fixes. A Ghidra that [config] uses and that lacks only the fixes gets them, and the IDE does not
+   * download another one.
+   */
+  private suspend fun installGhidra(config: RhipperProjectConfig?) {
+    val existing = ghidraInstall(config)
+    if (existing != null && !ghidraPatched(existing)) {
+      patchGhidra(existing, config)
+      return
+    }
     progress.update(RhipperBundle.message("tool.stage.release"), -1, -1)
     val release = githubJson(GHIDRA_RELEASE_API)
     val asset = assets(release).firstOrNull { (name, _) -> name.startsWith("ghidra_${GHIDRA_VERSION}_PUBLIC") && name.endsWith(".zip") }
@@ -326,8 +339,38 @@ class RhipperTools {
     extractInto(archive, toolsDir.resolve("ghidra"), keepTopDirectory = true) { true }
     Files.deleteIfExists(archive)
     Files.createDirectories(managedGhidraProjects)
-    managedGhidra ?: throw IOException(RhipperBundle.message("tool.unpack.failed", "Ghidra"))
+    val ghidra = managedGhidra ?: throw IOException(RhipperBundle.message("tool.unpack.failed", "Ghidra"))
+    patchGhidra(ghidra, config)
   }
+
+  /**
+   * Puts Rhipper's fixes into the Ghidra at [install]: `ghidra/decompiler/install.sh` of Rhipper builds the patched decompiler with
+   * CMake and Visual Studio, and runs `ghidra/sleigh/patch_sinc.py`, which patches the x86 SLEIGH spec that Ghidra's `sleigh` then
+   * compiles. Rhipper's `project.py` refuses a Ghidra without the fixes.
+   */
+  private fun patchGhidra(install: Path, config: RhipperProjectConfig?) {
+    val settings = RhipperSettings.getInstance()
+    val home = settings.rhipperHome(config) ?: throw IOException(RhipperBundle.message("rhipper.home.not.found"))
+    val script = home.resolve("ghidra").resolve("decompiler").resolve("install.sh")
+    if (!script.isRegularFile()) throw IOException(RhipperBundle.message("tool.ghidra.patch.missing", script))
+    progress.update(RhipperBundle.message("tool.stage.ghidra.patch"), -1, -1)
+    // the script runs `python`, `cmake` and Ghidra's sleigh, which needs `java`: the IDE's installs go first on the PATH
+    val pathPrefix = buildList {
+      Path.of(settings.pythonExecutable()).takeIf { it.isAbsolute }?.parent?.let { add(it.toString()) }
+      managedJdk?.let { add(it.resolve("bin").toString()) }
+    }
+    val commandLine = GeneralCommandLine(settings.bashExecutable(), script.toString())
+      .withWorkingDirectory(home)
+      .withEnvironment("RHIPPER_GHIDRA", install.toString())
+      .withEnvironment("PATH", (pathPrefix + System.getenv("PATH").orEmpty()).joinToString(java.io.File.pathSeparator))
+    managedJdk?.let { commandLine.withEnvironment("JAVA_HOME", it.toString()) }
+    run(commandLine)
+    if (!ghidraPatched(install)) throw IOException(RhipperBundle.message("tool.ghidra.patch.failed", install))
+  }
+
+  /** The Ghidra of [config]: its `ghidra.install`, else the one of the settings or the managed one. */
+  fun ghidraInstall(config: RhipperProjectConfig?): Path? =
+    config?.ghidra?.install?.let { resolveGlob(config.root, it) } ?: RhipperSettings.getInstance().ghidraInstall()
 
   private suspend fun installClangd() {
     val prefix = when {
@@ -481,6 +524,20 @@ class RhipperTools {
 
     /** Ghidra's ProjectLocator refuses a projects directory with any directory on its path starting with a dot. */
     fun ghidraAcceptsProjectPath(path: Path): Boolean = path.toAbsolutePath().none { it.toString().startsWith(".") }
+
+    /**
+     * Whether the Ghidra at [install] has Rhipper's fixes, as Rhipper's `project.py` tests it: `install.sh` keeps the release's
+     * decompiler as `decompile*.orig`, and `patch_sinc.py` keeps the release's x86 SLEIGH spec as `ia.sinc.orig`.
+     */
+    fun ghidraPatched(install: Path): Boolean {
+      val os = install.resolve("Ghidra").resolve("Features").resolve("Decompiler").resolve("os")
+      val decompiler = os.isDirectory() && Files.list(os).use { platforms ->
+        platforms.anyMatch { platform ->
+          platform.isDirectory() && Files.list(platform).use { files -> files.anyMatch { it.name.startsWith("decompile") && it.name.endsWith(".orig") } }
+        }
+      }
+      return decompiler && install.resolve("Ghidra/Processors/x86/data/languages/ia.sinc.orig").isRegularFile()
+    }
 
     /** The first directory that the `ghidra.install` setting [pattern] matches, as Rhipper's `project.py` reads it: a glob. */
     fun resolveGlob(root: Path, pattern: String): Path? {
